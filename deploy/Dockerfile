@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy workspace files
 COPY . .
 
+# Limit parallel jobs to prevent OOM
+ENV CARGO_BUILD_JOBS=2
+
 # Build only the private-node binary
 RUN cargo build -p private-node --release
 
