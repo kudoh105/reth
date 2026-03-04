@@ -119,12 +119,13 @@ fn process<T: Display + Clone>(item: T) { ... }
 |------|--------|------|------|
 | 00 | `00_ANALYSIS_CONTEXT.md` | 분석 목표, 전제조건, 규칙 (본 문서) | ✅ 완료 |
 | 01 | `01_PACKAGE_STRUCTURE.md` | 전체 패키지 구조 분석 | ✅ 완료 |
-| 02 | 미정 | 핵심 데이터 타입 (primitives) | ⬜ 예정 |
-| 03 | 미정 | 스토리지 레이어 | ⬜ 예정 |
-| 04 | 미정 | EVM 실행 흐름 | ⬜ 예정 |
-| 05 | 미정 | 동기화 (Staged Sync) | ⬜ 예정 |
-| 06 | 미정 | 네트워킹 (P2P) | ⬜ 예정 |
-| 07 | 미정 | RPC API | ⬜ 예정 |
-| 08 | 미정 | 페이로드/블록 빌더 | ⬜ 예정 |
-| 09 | 미정 | 트랜잭션 풀 | ⬜ 예정 |
-| 10 | 미정 | 커스터마이징 포인트 | ⬜ 예정 |
+| 02 | `02_PRIMITIVES.md` | 핵심 데이터 타입 (primitives) | ✅ 완료 |
+| 03 | `03_STORAGE_LAYER.md` | 스토리지 레이어 (DB 추상화, MDBX, 테이블, 코덱, Static File, Provider) | ✅ 완료 |
+| 04 | `04_EVM_EXECUTION_FLOW.md` | EVM 실행 흐름 (3-Layer 아키텍처, 블록 실행/빌딩, 시스템 콜, 상태 관리) | ✅ 완료 |
+| 05 | `05_STAGED_SYNC.md` | 동기화 파이프라인 (15개 Stage, Pipeline 실행/Unwind, StageSet 패턴) | ✅ 완료 |
+| 06 | `06_NETWORKING_P2P.md` | P2P 네트워킹 (NetworkManager, RLPx, 피어 관리, ETH 프로토콜) | ✅ 완료 |
+| 07 | `07_RPC_API.md` | RPC API (15개 네임스페이스, EthApi, Engine API, 비동기 처리) | ✅ 완료 |
+| 08 | `08_PAYLOAD_BUILDER.md` | 페이로드/블록 빌더 (PayloadJob, PayloadBuilderService, CL↔EL 흐름) | ✅ 완료 |
+| 09 | `09_TRANSACTION_POOL.md` | 트랜잭션 풀 (4개 서브풀, TX 검증/정렬, 풀 유지보수) | ✅ 완료 |
+| 10 | `10_CUSTOMIZATION_POINTS.md` | 커스터마이징 포인트 (ExEx, 28개 예제, Node Builder API, 금융 시나리오) | ✅ 완료 |
+| 11 | `11_TX_BLOCK_LIFECYCLE.md` | ERC20 Transfer 라이프사이클 (TX 진입→검증→풀→EVM→DB→Static File, 소스코드 추적) | ✅ 완료 |

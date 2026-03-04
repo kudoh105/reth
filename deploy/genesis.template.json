@@ -1,0 +1,51 @@
+{
+  "config": {
+    "chainId": 19260817,
+    "homesteadBlock": 0,
+    "eip150Block": 0,
+    "eip155Block": 0,
+    "eip158Block": 0,
+    "byzantiumBlock": 0,
+    "constantinopleBlock": 0,
+    "petersburgBlock": 0,
+    "istanbulBlock": 0,
+    "berlinBlock": 0,
+    "londonBlock": 0,
+    "shanghaiTime": 0,
+    "cancunTime": 0,
+    "terminalTotalDifficulty": 0,
+    "terminalTotalDifficultyPassed": true,
+    "epochLength": 100,
+    "validators": [
+      {
+        "pubkey": "VALIDATOR_1_PUBKEY",
+        "address": "172.20.0.11:8000"
+      },
+      {
+        "pubkey": "VALIDATOR_2_PUBKEY",
+        "address": "172.20.0.12:8000"
+      },
+      {
+        "pubkey": "VALIDATOR_3_PUBKEY",
+        "address": "172.20.0.13:8000"
+      },
+      {
+        "pubkey": "VALIDATOR_4_PUBKEY",
+        "address": "172.20.0.14:8000"
+      }
+    ],
+    "publicPolynomial": "PUBLIC_POLYNOMIAL_HEX"
+  },
+  "nonce": "0x0",
+  "timestamp": "0x0",
+  "extraData": "0x",
+  "gasLimit": "0x1c9c380",
+  "difficulty": "0x0",
+  "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "coinbase": "0x0000000000000000000000000000000000000000",
+  "alloc": {
+    "0x0000000000000000000000000000000000000001": {
+      "balance": "0x0"
+    }
+  }
+}

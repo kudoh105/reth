@@ -9,6 +9,7 @@ exclude = [".github/"]
 
 [workspace]
 members = [
+    "bin/private-node/",
     "bin/reth-bench/",
     "bin/reth-bench-compare/",
     "bin/reth/",
@@ -19,6 +20,7 @@ members = [
     "crates/cli/commands/",
     "crates/cli/runner/",
     "crates/cli/util/",
+    "crates/commonware-consensus/",
     "crates/config/",
     "crates/consensus/common/",
     "crates/consensus/consensus/",
@@ -437,6 +439,20 @@ reth-trie-db = { path = "crates/trie/db" }
 reth-trie-parallel = { path = "crates/trie/parallel" }
 reth-trie-sparse = { path = "crates/trie/sparse", default-features = false }
 reth-zstd-compressors = { path = "crates/storage/zstd-compressors", default-features = false }
+reth-commonware-consensus = { path = "crates/commonware-consensus" }
+
+# Commonware (ported from Tempo, v2026.2.0)
+commonware-broadcast = "2026.2.0"
+commonware-codec = "2026.2.0"
+commonware-consensus = "2026.2.0"
+commonware-cryptography = "2026.2.0"
+commonware-macros = "2026.2.0"
+commonware-math = "2026.2.0"
+commonware-p2p = "2026.2.0"
+commonware-parallel = "2026.2.0"
+commonware-runtime = { version = "2026.2.0", features = ["external"] }
+commonware-storage = "2026.2.0"
+commonware-utils = "2026.2.0"
 
 # revm
 revm = { version = "34.0.0", default-features = false }
@@ -515,16 +531,19 @@ brotli = "8"
 cfg-if = "1.0"
 clap = "4"
 color-eyre = "0.6"
+const-hex = "1"
 dashmap = "6.0"
 derive_more = { version = "2", default-features = false, features = ["full"] }
 dirs-next = "2.0.0"
 dyn-clone = "1.0.17"
 eyre = "0.6"
+governor = "0.10.4"
 fdlimit = "0.3.0"
 fixed-map = { version = "0.9", default-features = false }
 humantime = "2.1"
 humantime-serde = "1.1"
 itertools = { version = "0.14", default-features = false }
+jiff = { version = "0.2.18", default-features = false, features = ["std"] }
 linked_hash_set = "0.1"
 lz4 = "1.28.1"
 modular-bitfield = "0.13.1"
@@ -532,8 +551,10 @@ notify = { version = "8.0.0", default-features = false, features = ["macos_fseve
 nybbles = { version = "0.4.8", default-features = false }
 once_cell = { version = "1.19", default-features = false, features = ["critical-section"] }
 parking_lot = "0.12"
+prometheus-client = "0.24.0"
 paste = "1.0"
 rand = "0.9"
+rand_core = "0.6"
 rayon = "1.7"
 rustc-hash = { version = "2.0", default-features = false }
 schnellru = "0.2"

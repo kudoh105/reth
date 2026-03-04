@@ -1,0 +1,101 @@
+version: "3.8"
+
+services:
+  v1:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: private-v1
+    hostname: v1
+    volumes:
+      - v1-data:/data
+      - ./keys/v1:/keys:ro
+      - ./genesis.json:/genesis.json:ro
+    networks:
+      private-net:
+        ipv4_address: 172.20.0.11
+    ports:
+      - "8545:8545" # JSON-RPC only on v1
+    command: >
+      node --chain /genesis.json --datadir /data --http --http.addr 0.0.0.0 --http.port 8545 --http.api eth,net,web3,debug --consensus.signing-key /keys/ed25519.hex --consensus.signing-share /keys/bls-share.hex --consensus.listen-address 0.0.0.0:8000 --consensus.fee-recipient 0x0000000000000000000000000000000000000001 --consensus.use-local-defaults --consensus.allow-private-ips
+    deploy:
+      resources:
+        limits:
+          memory: 3500m
+          cpus: "1.5"
+
+  v2:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: private-v2
+    hostname: v2
+    volumes:
+      - v2-data:/data
+      - ./keys/v2:/keys:ro
+      - ./genesis.json:/genesis.json:ro
+    networks:
+      private-net:
+        ipv4_address: 172.20.0.12
+    command: >
+      node --chain /genesis.json --datadir /data --consensus.signing-key /keys/ed25519.hex --consensus.signing-share /keys/bls-share.hex --consensus.listen-address 0.0.0.0:8000 --consensus.fee-recipient 0x0000000000000000000000000000000000000002 --consensus.use-local-defaults --consensus.allow-private-ips
+    deploy:
+      resources:
+        limits:
+          memory: 3500m
+          cpus: "1.5"
+
+  v3:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: private-v3
+    hostname: v3
+    volumes:
+      - v3-data:/data
+      - ./keys/v3:/keys:ro
+      - ./genesis.json:/genesis.json:ro
+    networks:
+      private-net:
+        ipv4_address: 172.20.0.13
+    command: >
+      node --chain /genesis.json --datadir /data --consensus.signing-key /keys/ed25519.hex --consensus.signing-share /keys/bls-share.hex --consensus.listen-address 0.0.0.0:8000 --consensus.fee-recipient 0x0000000000000000000000000000000000000003 --consensus.use-local-defaults --consensus.allow-private-ips
+    deploy:
+      resources:
+        limits:
+          memory: 3500m
+          cpus: "1.5"
+
+  v4:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: private-v4
+    hostname: v4
+    volumes:
+      - v4-data:/data
+      - ./keys/v4:/keys:ro
+      - ./genesis.json:/genesis.json:ro
+    networks:
+      private-net:
+        ipv4_address: 172.20.0.14
+    command: >
+      node --chain /genesis.json --datadir /data --consensus.signing-key /keys/ed25519.hex --consensus.signing-share /keys/bls-share.hex --consensus.listen-address 0.0.0.0:8000 --consensus.fee-recipient 0x0000000000000000000000000000000000000004 --consensus.use-local-defaults --consensus.allow-private-ips
+    deploy:
+      resources:
+        limits:
+          memory: 3500m
+          cpus: "1.5"
+
+networks:
+  private-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  v1-data:
+  v2-data:
+  v3-data:
+  v4-data:

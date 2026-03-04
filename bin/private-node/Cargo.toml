@@ -1,0 +1,36 @@
+[package]
+name = "private-node"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+description = "Private chain node combining Reth (EVM execution) with Commonware consensus"
+
+[[bin]]
+name = "private-node"
+path = "src/main.rs"
+
+[dependencies]
+reth-commonware-consensus.workspace = true
+
+# Reth
+reth-chainspec.workspace = true
+reth-cli-util.workspace = true
+reth-ethereum.workspace = true
+reth-ethereum-cli.workspace = true
+reth-node-builder.workspace = true
+reth-node-core.workspace = true
+reth-provider.workspace = true
+reth-rpc-server-types.workspace = true
+
+# Commonware
+commonware-runtime = { workspace = true, features = ["external"] }
+
+# External
+clap.workspace = true
+eyre.workspace = true
+futures.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
