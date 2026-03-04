@@ -8,9 +8,7 @@ use std::{pin::Pin, sync::Arc, time::Duration};
 use alloy_rpc_types_engine::ForkchoiceState;
 use commonware_consensus::{Heightable as _, marshal::Update, types::Height};
 
-use commonware_runtime::{
-    Clock, ContextCell, FutureExt, Handle, Metrics, Pacer, Spawner, spawn_cell,
-};
+use commonware_runtime::{Clock, ContextCell, FutureExt, Handle, Metrics, Pacer, Spawner, spawn_cell};
 use commonware_utils::{Acknowledgement, acknowledgement::Exact};
 use eyre::{OptionExt as _, Report, WrapErr as _, ensure};
 use futures::{
@@ -21,7 +19,7 @@ use futures::{
     },
     select_biased,
 };
-use reth_engine_primitives::ExecutionPayload as _;
+use alloy_rpc_types_engine::ExecutionData;
 use reth_payload_primitives::EngineApiMessageVersion;
 use tracing::{
     Level, Span, debug, error, error_span, info, info_span, instrument, warn, warn_span,
@@ -389,14 +387,14 @@ where
         .await
         .wrap_err("failed canonicalizing finalized block")?;
 
-        let block = block.into_inner();
-        // Use standard ExecutionData (no custom validator_set field)
-        let execution_data = reth_ethereum_engine_primitives::ExecutionData {
-            payload: reth_ethereum_engine_primitives::EthExecutionPayload::from_block_unchecked(
-                block.hash(),
-                &block.clone().into_block(),
-            ),
-            sidecar: alloy_rpc_types_engine::ExecutionPayloadSidecar::none(),
+        let block_inner = block.clone().into_inner();
+        let (payload, sidecar) = alloy_rpc_types_engine::ExecutionPayload::from_block_unchecked(
+            block_inner.hash(),
+            &block_inner.into_block(),
+        );
+        let execution_data = ExecutionData {
+            payload,
+            sidecar,
         };
         let payload_status = self
             .execution_node

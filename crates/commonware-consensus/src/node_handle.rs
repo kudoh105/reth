@@ -5,10 +5,10 @@
 
 use std::sync::Arc;
 
-use reth_chainspec::ChainSpec;
+use reth_chainspec::{ChainSpec, ChainSpecProvider};
 use reth_db::DatabaseEnv;
 use reth_engine_primitives::ConsensusEngineHandle;
-use reth_ethereum::EthEngineTypes;
+use reth_ethereum_engine_primitives::EthEngineTypes;
 use reth_node_builder::{
     FullNode, NodeAdapter, RethFullAdapter,
 };
@@ -78,11 +78,9 @@ impl PrivateNodeHandle {
             >,
         >,
         Node::Provider: BlockHashReader + BlockNumReader + Clone + 'static,
-        AddOns: reth_node_builder::NodeAddOns<Node>,
-        AddOns::Handle: AsRef<reth_node_builder::rpc::RpcHandle<Node, reth_rpc::EthApi<Node>>>,
+        AddOns: reth_node_builder::rpc::RethRpcAddOns<Node>,
     {
-        let rpc_handle: &reth_node_builder::rpc::RpcHandle<Node, reth_rpc::EthApi<Node>> =
-            node.add_ons_handle.as_ref();
+        let rpc_handle = &node.add_ons_handle;
         let beacon_engine = rpc_handle.beacon_engine_handle.clone();
         let payload_builder = node.payload_builder_handle.clone();
         let chain_spec = node.provider.chain_spec();

@@ -18,9 +18,9 @@ static ALLOC: reth_cli_util::allocator::Allocator = reth_cli_util::allocator::ne
 use clap::Parser;
 use commonware_runtime::{Metrics, Runner};
 use eyre::WrapErr as _;
-use reth_ethereum::cli::Commands;
-use reth_ethereum_cli::Cli;
+use reth_ethereum_cli::{chainspec::EthereumChainSpecParser, Cli, Commands};
 use reth_node_builder::{NodeHandle, WithLaunchContext};
+use reth_node_ethereum::EthereumNode;
 use reth_rpc_server_types::DefaultRpcModuleValidator;
 use reth_commonware_consensus::{run_consensus_stack, PrivateNodeHandle};
 
@@ -38,17 +38,12 @@ struct PrivateNodeArgs {
 fn main() -> eyre::Result<()> {
     reth_cli_util::sigsegv_handler::install();
 
-    // Install default crypto provider for rustls.
-    rustls::crypto::ring::default_provider()
-        .install_default()
-        .expect("Failed to install default rustls crypto provider");
-
     if std::env::var_os("RUST_BACKTRACE").is_none() {
         unsafe { std::env::set_var("RUST_BACKTRACE", "1") };
     }
 
     let cli = Cli::<
-        reth_ethereum::chainspec::EthereumChainSpecParser,
+        EthereumChainSpecParser,
         PrivateNodeArgs,
         DefaultRpcModuleValidator,
     >::parse();
@@ -120,25 +115,20 @@ fn main() -> eyre::Result<()> {
     });
 
     // Run Reth EL with standard EthereumNode.
-    cli.run_with_components::<reth_ethereum::node::EthereumNode>(
-        |_spec| (
-            reth_ethereum::EthEvmConfig::new(Arc::new(reth_chainspec::MAINNET.clone())),
-            reth_ethereum::EthereumConsensus::new(Arc::new(reth_chainspec::MAINNET.clone())),
-        ),
-        async move |builder, args| {
-            let NodeHandle {
-                node,
-                node_exit_future,
-            } = builder
-                .node(reth_ethereum::node::EthereumNode::default())
-                .apply(|mut builder: WithLaunchContext<_>| {
-                    // Disable devp2p discovery (we use Commonware P2P).
-                    builder.config_mut().network.discovery.enable_discv5_discovery = false;
-                    builder
-                })
-                .launch()
-                .await
-                .wrap_err("failed launching execution node")?;
+    cli.run(async move |builder, args: PrivateNodeArgs| {
+        let NodeHandle {
+            node,
+            node_exit_future,
+        } = builder
+            .node(EthereumNode::default())
+            .apply(|mut builder| {
+                // Disable devp2p discovery (we use Commonware P2P).
+                builder.config_mut().network.discovery.disable_discovery = true;
+                builder
+            })
+            .launch()
+            .await
+            .wrap_err("failed launching execution node")?;
 
             // Extract handles and send to consensus thread.
             let private_handle = PrivateNodeHandle::new(&node);
@@ -158,9 +148,8 @@ fn main() -> eyre::Result<()> {
             }
 
             Ok(())
-        },
-    )
-    .wrap_err("execution node failed")?;
+        })
+        .wrap_err("execution node failed")?;
 
     shutdown_token.cancel();
 

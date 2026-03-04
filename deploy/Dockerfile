@@ -1,13 +1,18 @@
 # Multi-stage build for the private-node binary
-FROM rust:1.88-bookworm AS builder
+FROM rust:1.93-bookworm AS builder
 
 WORKDIR /usr/src/reth
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    clang \
+    libclang-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy workspace files
 COPY . .
 
 # Build only the private-node binary
-RUN cargo build --release --bin private-node
+RUN cargo build -p private-node --release
 
 # Runtime stage
 FROM debian:bookworm-slim

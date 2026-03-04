@@ -408,8 +408,8 @@ where
 
         let marshal = self.marshal.start(
             Reporters::from((
-                self.executor_mailbox,
-                Reporters::from(self.peer_manager_mailbox),
+                self.executor_mailbox.clone(),
+                Reporters::from((self.peer_manager_mailbox, self.executor_mailbox)),
             )),
             self.broadcast_mailbox,
             resolver,

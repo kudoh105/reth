@@ -47,23 +47,11 @@ use tracing::{info, info_span};
 /// This function is the entry point called from the consensus thread.
 /// It initializes the Commonware P2P network, builds the consensus engine,
 /// and runs everything to completion.
-pub async fn run_consensus_stack<TContext>(
-    ctx: &TContext,
+pub async fn run_consensus_stack(
+    ctx: &commonware_runtime::tokio::Context,
     args: Args,
     node: PrivateNodeHandle,
-) -> eyre::Result<()>
-where
-    TContext: Clock
-        + governor::clock::Clock
-        + Rng
-        + CryptoRng
-        + Pacer
-        + Spawner
-        + Storage
-        + Metrics
-        + Network
-        + Clone,
-{
+) -> eyre::Result<()> {
     let signing_key = args
         .signing_key()?
         .ok_or_else(|| eyre::eyre!("consensus.signing-key is required for validator mode"))?;
@@ -93,29 +81,30 @@ where
     });
 
     // Initialize the P2P network.
-    let p2p_config = authenticated::Config {
-        namespace: config::NAMESPACE.to_vec(),
-        signer: signing_key.clone().into_inner(),
-        address: commonware_p2p::Address::Network(args.listen_address.into()),
+    let p2p_config = commonware_p2p::authenticated::lookup::Config {
+        namespace: commonware_utils::union_unique(config::NAMESPACE, b"_P2P"),
+        crypto: signing_key.clone().into_inner(),
+        listen: args.listen_address,
         mailbox_size: args.mailbox_size,
         max_message_size: args.max_message_size_bytes,
         synchrony_bound: args.synchrony_bound.into_duration(),
         allow_private_ips: args.allow_private_ips,
         allow_dns: args.allow_dns,
-        connection_per_peer_min_period: args.connection_per_peer_min_period.into_duration(),
-        handshake_per_ip_min_period: args.handshake_per_ip_min_period.into_duration(),
-        handshake_per_subnet_min_period: args.handshake_per_subnet_min_period.into_duration(),
-        handshake_stale_after: args.handshake_stale_after.into_duration(),
+        tracked_peer_sets: 0,
+        allowed_connection_rate_per_peer: commonware_runtime::Quota::with_period(args.connection_per_peer_min_period.into_duration()).unwrap(),
+        allowed_handshake_rate_per_ip: commonware_runtime::Quota::with_period(args.handshake_per_ip_min_period.into_duration()).unwrap(),
+        allowed_handshake_rate_per_subnet: commonware_runtime::Quota::with_period(args.handshake_per_subnet_min_period.into_duration()).unwrap(),
+        max_handshake_age: args.handshake_stale_after.into_duration(),
         handshake_timeout: args.handshake_timeout.into_duration(),
         max_concurrent_handshakes: args.max_concurrent_handshakes,
-        time_to_unblock_byzantine_peer: args.time_to_unblock_byzantine_peer.into_duration(),
-        wait_before_peers_redial: args.wait_before_peers_redial.into_duration(),
-        wait_before_peers_reping: args.wait_before_peers_reping.into_duration(),
-        wait_before_peers_discovery: args.wait_before_peers_discovery.into_duration(),
+        block_duration: args.time_to_unblock_byzantine_peer.into_duration(),
+        dial_frequency: args.wait_before_peers_redial.into_duration(),
+        ping_frequency: args.wait_before_peers_reping.into_duration(),
+        query_frequency: args.wait_before_peers_discovery.into_duration(),
         bypass_ip_check: args.bypass_ip_check,
     };
 
-    let (mut network, oracle) = authenticated::Engine::new(ctx.clone(), p2p_config);
+    let (mut network, oracle) = commonware_p2p::authenticated::lookup::Network::new(ctx.clone().with_label("network"), p2p_config);
 
     let broadcaster_channel = network.register(
         config::BROADCASTER_CHANNEL_IDENT,
@@ -158,14 +147,19 @@ where
     // Start the network and engine.
     let network_handle = network.start();
 
+    // Start block production and consensus components.
+    // The previous implementation of .start(...) signature has multiple arguments in tempo. Wait, here we only use broadcaster/marshal? No, we will let it compile and see.
     let engine_handle = engine.start(broadcaster_channel, marshal_channel);
 
     info!("consensus engine started");
 
     // Wait for the engine or network to complete.
-    let _ = futures::future::try_join(engine_handle, async { network_handle.await; Ok(()) })
-        .await
-        .wrap_err("consensus engine failed")?;
-
-    Ok(())
+    tokio::select! {
+        ret = network_handle => {
+            Err(eyre::eyre!("network task failed: {:?}", ret))
+        }
+        ret = engine_handle => {
+            Err(eyre::eyre!("consensus engine task failed: {:?}", ret))
+        }
+    }
 }

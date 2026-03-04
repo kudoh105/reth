@@ -20,9 +20,9 @@ use commonware_consensus::{
     types::{Height, Round, View},
 };
 use commonware_runtime::{
-    ContextCell, FutureExt, Handle, Metrics, Pacer, Spawner, Storage, spawn_cell,
+    Clock, ContextCell, FutureExt, Handle, Metrics, Pacer, Spawner, Storage, spawn_cell,
 };
-use commonware_utils::channel::oneshot;
+use commonware_utils::{channel::oneshot, SystemTimeExt};
 use eyre::{OptionExt as _, WrapErr as _};
 use futures::{StreamExt as _, channel::mpsc};
 use rand_08::{CryptoRng, Rng};
@@ -160,15 +160,16 @@ where
         parent: (View, Digest),
         round: Round,
     ) -> eyre::Result<Digest> {
-        let (_parent_view, parent_digest) = parent;
+        let (parent_view, parent_digest) = parent;
 
         // Retrieve the parent block from the marshal.
         let parent = self
             .state
             .marshal
-            .get_by_digest(parent_digest)
+            .subscribe(Some(commonware_consensus::types::Round::new(round.epoch(), parent_view)), parent_digest)
             .await
-            .ok_or_eyre("parent block not found in marshal")?;
+            .await
+            .map_err(|_| eyre::eyre!("failed resolving parent block"))?;
 
         let parent_hash = parent.block_hash();
         let timestamp = self.context.current().epoch_millis() / 1000;
@@ -231,26 +232,28 @@ where
             payload: block_digest,
             proposer: _,
             response,
-            round: _,
+            round,
         } = verify;
 
-        let (_parent_view, parent_digest) = parent;
+        let (parent_view, parent_digest) = parent;
 
         // Retrieve the block from the marshal.
         let block = self
             .state
             .marshal
-            .get_by_digest(block_digest)
+            .subscribe(None, block_digest)
             .await
-            .ok_or_eyre("block not found in marshal for verification")?;
+            .await
+            .map_err(|_| eyre::eyre!("failed resolving block for verification"))?;
 
         // Retrieve the parent block.
         let parent = self
             .state
             .marshal
-            .get_by_digest(parent_digest)
+            .subscribe(None, parent_digest)
             .await
-            .ok_or_eyre("parent block not found in marshal")?;
+            .await
+            .map_err(|_| eyre::eyre!("failed resolving parent block for verification"))?;
 
         // Update canonical head to parent.
         if let Err(error) = self
@@ -268,12 +271,13 @@ where
 
         // Send the block to the execution engine for validation.
         let block_inner = block.clone().into_inner();
-        let execution_data = reth_ethereum_engine_primitives::ExecutionData {
-            payload: reth_ethereum_engine_primitives::EthExecutionPayload::from_block_unchecked(
-                block_inner.hash(),
-                &block_inner.into_block(),
-            ),
-            sidecar: alloy_rpc_types_engine::ExecutionPayloadSidecar::none(),
+        let (payload, sidecar) = alloy_rpc_types_engine::ExecutionPayload::from_block_unchecked(
+            block_inner.hash(),
+            &block_inner.into_block(),
+        );
+        let execution_data = alloy_rpc_types_engine::ExecutionData {
+            payload,
+            sidecar,
         };
 
         let payload_status = self
@@ -299,7 +303,7 @@ where
 
         // Notify marshal that verification is complete
         if is_valid {
-            self.state.marshal.verified(block_digest).await;
+            self.state.marshal.verified(round, block.clone()).await;
         }
 
         Ok(is_valid)

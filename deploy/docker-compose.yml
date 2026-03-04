@@ -17,7 +17,7 @@ services:
     ports:
       - "8545:8545" # JSON-RPC only on v1
     command: >
-      node --chain /genesis.json --datadir /data --http --http.addr 0.0.0.0 --http.port 8545 --http.api eth,net,web3,debug --consensus.signing-key /keys/ed25519.hex --consensus.signing-share /keys/bls-share.hex --consensus.listen-address 0.0.0.0:8000 --consensus.fee-recipient 0x0000000000000000000000000000000000000001 --consensus.use-local-defaults --consensus.allow-private-ips
+      node --dev --datadir /data --http --http.addr 0.0.0.0 --http.port 8545 --http.api eth,net,web3,debug --http.corsdomain "*" --consensus.signing-key /keys/ed25519.hex --consensus.listen-address 0.0.0.0:8000 --consensus.datadir /data/consensus --consensus.fee-recipient 0x0000000000000000000000000000000000000001 --consensus.use-local-defaults --consensus.allow-private-ips
     deploy:
       resources:
         limits:
@@ -38,7 +38,7 @@ services:
       private-net:
         ipv4_address: 172.20.0.12
     command: >
-      node --chain /genesis.json --datadir /data --consensus.signing-key /keys/ed25519.hex --consensus.signing-share /keys/bls-share.hex --consensus.listen-address 0.0.0.0:8000 --consensus.fee-recipient 0x0000000000000000000000000000000000000002 --consensus.use-local-defaults --consensus.allow-private-ips
+      node --dev --datadir /data --consensus.signing-key /keys/ed25519.hex --consensus.listen-address 0.0.0.0:8000 --consensus.datadir /data/consensus --consensus.fee-recipient 0x0000000000000000000000000000000000000002 --consensus.use-local-defaults --consensus.allow-private-ips
     deploy:
       resources:
         limits:
@@ -59,7 +59,7 @@ services:
       private-net:
         ipv4_address: 172.20.0.13
     command: >
-      node --chain /genesis.json --datadir /data --consensus.signing-key /keys/ed25519.hex --consensus.signing-share /keys/bls-share.hex --consensus.listen-address 0.0.0.0:8000 --consensus.fee-recipient 0x0000000000000000000000000000000000000003 --consensus.use-local-defaults --consensus.allow-private-ips
+      node --dev --datadir /data --consensus.signing-key /keys/ed25519.hex --consensus.listen-address 0.0.0.0:8000 --consensus.datadir /data/consensus --consensus.fee-recipient 0x0000000000000000000000000000000000000003 --consensus.use-local-defaults --consensus.allow-private-ips
     deploy:
       resources:
         limits:
@@ -80,7 +80,7 @@ services:
       private-net:
         ipv4_address: 172.20.0.14
     command: >
-      node --chain /genesis.json --datadir /data --consensus.signing-key /keys/ed25519.hex --consensus.signing-share /keys/bls-share.hex --consensus.listen-address 0.0.0.0:8000 --consensus.fee-recipient 0x0000000000000000000000000000000000000004 --consensus.use-local-defaults --consensus.allow-private-ips
+      node --dev --datadir /data --consensus.signing-key /keys/ed25519.hex --consensus.listen-address 0.0.0.0:8000 --consensus.datadir /data/consensus --consensus.fee-recipient 0x0000000000000000000000000000000000000004 --consensus.use-local-defaults --consensus.allow-private-ips
     deploy:
       resources:
         limits:
