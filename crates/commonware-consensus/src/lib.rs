@@ -36,11 +36,12 @@ mod peer_manager;
 pub use args::Args;
 pub use node_handle::PrivateNodeHandle;
 
-use commonware_p2p::authenticated;
+use commonware_codec::DecodeExt as _;
+use commonware_p2p::{AddressableManager, authenticated};
 use commonware_runtime::{Clock, Metrics, Network, Pacer, Spawner, Storage};
 use eyre::WrapErr as _;
 use rand_08::{CryptoRng, Rng};
-use tracing::{info, info_span};
+use tracing::{info, warn, info_span};
 
 /// Runs the complete consensus stack.
 ///
@@ -90,7 +91,7 @@ pub async fn run_consensus_stack(
         synchrony_bound: args.synchrony_bound.into_duration(),
         allow_private_ips: args.allow_private_ips,
         allow_dns: args.allow_dns,
-        tracked_peer_sets: 0,
+        tracked_peer_sets: config::PEERSETS_TO_TRACK,
         allowed_connection_rate_per_peer: commonware_runtime::Quota::with_period(args.connection_per_peer_min_period.into_duration()).unwrap(),
         allowed_handshake_rate_per_ip: commonware_runtime::Quota::with_period(args.handshake_per_ip_min_period.into_duration()).unwrap(),
         allowed_handshake_rate_per_subnet: commonware_runtime::Quota::with_period(args.handshake_per_subnet_min_period.into_duration()).unwrap(),
@@ -104,7 +105,45 @@ pub async fn run_consensus_stack(
         bypass_ip_check: args.bypass_ip_check,
     };
 
-    let (mut network, oracle) = commonware_p2p::authenticated::lookup::Network::new(ctx.clone().with_label("network"), p2p_config);
+    let (mut network, mut oracle) = commonware_p2p::authenticated::lookup::Network::new(ctx.clone().with_label("network"), p2p_config);
+
+    // Register authorized peers from genesis config and/or --consensus.known-peers.
+    // Without at least one peer set, commonware-p2p rejects all inbound connections.
+    let mut peer_entries = Vec::new();
+
+    // Source 1: Genesis validators (from chainspec extra_fields).
+    let genesis_info = node.genesis_info();
+    if let Some(validators) = &genesis_info.validators {
+        for v in validators {
+            if let Some(entry) = parse_peer_entry(&v.pubkey, &v.address) {
+                peer_entries.push(entry);
+            }
+        }
+        info!(count = validators.len(), "parsed genesis validators");
+    }
+
+    // Source 2: CLI --consensus.known-peers (pubkey@ip:port format).
+    for raw in &args.known_peers {
+        let Some((pubkey_str, addr_str)) = raw.split_once('@') else {
+            warn!(peer = %raw, "skipping known-peer: expected pubkey@ip:port format");
+            continue;
+        };
+        if let Some(entry) = parse_peer_entry(pubkey_str, addr_str) {
+            peer_entries.push(entry);
+        }
+    }
+    if !args.known_peers.is_empty() {
+        info!(count = args.known_peers.len(), "parsed CLI known peers");
+    }
+
+    if peer_entries.is_empty() {
+        warn!("no authorized peers from genesis or CLI; P2P will reject all connections");
+    } else {
+        let total = peer_entries.len();
+        let peer_map = commonware_utils::ordered::Map::from_iter_dedup(peer_entries);
+        oracle.track(0, peer_map).await;
+        info!(num_peers = total, "registered initial authorized peer set");
+    }
 
     let broadcaster_channel = network.register(
         config::BROADCASTER_CHANNEL_IDENT,
@@ -162,4 +201,36 @@ pub async fn run_consensus_stack(
             Err(eyre::eyre!("consensus engine task failed: {:?}", ret))
         }
     }
+}
+
+/// Parses a pubkey hex string and address string into a `(PublicKey, Address)` pair.
+///
+/// Accepts pubkeys with or without `0x` prefix. Returns `None` with a warning on parse errors.
+fn parse_peer_entry(
+    pubkey_str: &str,
+    addr_str: &str,
+) -> Option<(commonware_cryptography::ed25519::PublicKey, commonware_p2p::Address)> {
+    let pubkey_hex = pubkey_str.strip_prefix("0x").unwrap_or(pubkey_str);
+    let pubkey_bytes = match const_hex::decode(pubkey_hex) {
+        Ok(b) => b,
+        Err(e) => {
+            warn!(pubkey = %pubkey_str, %e, "skipping peer with invalid pubkey hex");
+            return None;
+        }
+    };
+    let pubkey = match commonware_cryptography::ed25519::PublicKey::decode(&pubkey_bytes[..]) {
+        Ok(pk) => pk,
+        Err(e) => {
+            warn!(pubkey = %pubkey_str, ?e, "skipping peer with invalid ed25519 pubkey");
+            return None;
+        }
+    };
+    let addr: std::net::SocketAddr = match addr_str.parse() {
+        Ok(a) => a,
+        Err(e) => {
+            warn!(address = %addr_str, %e, "skipping peer with invalid socket address");
+            return None;
+        }
+    };
+    Some((pubkey, commonware_p2p::Address::from(addr)))
 }
