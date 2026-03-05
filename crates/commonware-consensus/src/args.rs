@@ -192,16 +192,6 @@ pub struct Args {
     #[arg(long = "consensus.fcu-heartbeat-interval", default_value = "5m")]
     pub fcu_heartbeat_interval: PositiveDuration,
 
-    /// Comma-separated list of known peers in `pubkey@ip:port` format.
-    ///
-    /// Each entry registers a validator for P2P authorization. Without known
-    /// peers (and without genesis validators), the P2P layer will reject all
-    /// inbound connections.
-    ///
-    /// Example: `0xaabb...@172.20.0.11:8000,0xccdd...@172.20.0.12:8000`
-    #[arg(long = "consensus.known-peers", value_delimiter = ',')]
-    pub known_peers: Vec<String>,
-
     /// Cache for the signing key.
     #[clap(skip)]
     loaded_signing_key: OnceLock<Option<SigningKey>>,

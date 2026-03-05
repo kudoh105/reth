@@ -403,7 +403,7 @@ where
         let resolver =
             marshal::resolver::p2p::init(&self.context, self.resolver_config, marshal_channel);
 
-        let application = self.application.start(());  // Placeholder for DKG mailbox
+        let application = self.application.start();
         let executor = self.executor.start();
 
         let marshal = self.marshal.start(

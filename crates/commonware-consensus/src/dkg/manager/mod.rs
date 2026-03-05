@@ -47,6 +47,7 @@ use crate::{
     epoch::{self, SchemeProvider},
     genesis::PrivateGenesisInfo,
     node_handle::PrivateNodeHandle,
+    peer_manager,
 };
 
 /// Configuration for the static DKG manager.
@@ -69,6 +70,9 @@ pub(crate) struct Config {
 
     /// Scheme provider for registering BLS threshold schemes.
     pub(crate) scheme_provider: SchemeProvider,
+
+    /// Peer manager mailbox for tracking validator peers.
+    pub(crate) peer_manager: peer_manager::Mailbox,
 }
 
 /// Mailbox for the DKG manager actor.
@@ -227,9 +231,11 @@ where
 
         info!("instructed epoch manager to enter epoch 0");
 
-        // Inform the peer manager about the participants so that P2P tracking is active.
-        self.config.peer_manager.track(initial_epoch, participants.clone());
-        info!("instructed peer manager to track peers for epoch 0");
+        // TODO: Inform the peer manager about the participants once DKG is fully integrated.
+        // The peer_manager.track() requires (u64, Map<PublicKey, Address>) but we only have
+        // (Epoch, Set<PublicKey>) here. This will be connected when the DKG flow is active.
+        let _ = &self.config.peer_manager;
+        info!("DKG manager initialized (peer tracking deferred)");
 
         // Main loop: listen for finalized blocks and manage epoch transitions.
         let mut current_epoch = initial_epoch;

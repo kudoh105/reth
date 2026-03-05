@@ -37,7 +37,7 @@ pub use args::Args;
 pub use node_handle::PrivateNodeHandle;
 
 use commonware_codec::DecodeExt as _;
-use commonware_p2p::{authenticated, AddressableManager};
+use commonware_p2p::AddressableManager;
 use commonware_runtime::{Clock, Metrics, Network, Pacer, Spawner, Storage};
 use eyre::WrapErr as _;
 use rand_08::{CryptoRng, Rng};
@@ -155,54 +155,6 @@ pub async fn run_consensus_stack(
         info!(num_peers = total, "registered initial authorized peer set");
     }
 
-    // Track bootnodes to initiate connections
-    if !args.known_peers.is_empty() {
-        use commonware_p2p::types::Address;
-        use commonware_p2p::AddressableManager;
-        let mut peers = Vec::new();
-        for bootnode in &args.known_peers {
-            let parts: Vec<&str> = bootnode.split('@').collect();
-            if parts.len() != 2 {
-                warn!(%bootnode, "invalid bootnode format, expected pubkey@ip:port");
-                continue;
-            }
-            let pubkey_hex = parts[0].strip_prefix("0x").unwrap_or(parts[0]);
-            let Ok(pubkey_bytes) = const_hex::decode(pubkey_hex) else {
-                warn!(%bootnode, "failed to decode public key hex");
-                continue;
-            };
-            use commonware_codec::DecodeExt;
-            let Ok(pubkey) =
-                commonware_cryptography::ed25519::PublicKey::decode(&mut pubkey_bytes.as_slice())
-            else {
-                warn!(%bootnode, "failed to decode public key");
-                continue;
-            };
-            let Ok(addr) = parts[1].parse::<std::net::SocketAddr>() else {
-                warn!(%bootnode, "failed to parse socket address");
-                continue;
-            };
-            peers.push((pubkey, Address::from(addr)));
-        }
-
-        let map = commonware_utils::ordered::Map::from_iter_dedup(peers);
-        oracle.track(0, map).await;
-        info!("tracked {} bootnodes for initial discovery", args.known_peers.len());
-    }
-
-    // Register P2P channels for all protocol components.
-    let votes_channel =
-        network.register(config::VOTES_CHANNEL_IDENT, config::VOTES_LIMIT, args.message_backlog);
-    let certificates_channel = network.register(
-        config::CERTIFICATES_CHANNEL_IDENT,
-        config::CERTIFICATES_LIMIT,
-        args.message_backlog,
-    );
-    let resolver_channel = network.register(
-        config::RESOLVER_CHANNEL_IDENT,
-        config::RESOLVER_LIMIT,
-        args.message_backlog,
-    );
     let broadcaster_channel = network.register(
         config::BROADCASTER_CHANNEL_IDENT,
         config::BROADCASTER_LIMIT,
@@ -244,14 +196,8 @@ pub async fn run_consensus_stack(
     // Start the network and engine.
     let network_handle = network.start();
 
-    // Start block production and consensus components with all channels.
-    let engine_handle = engine.start(
-        votes_channel,
-        certificates_channel,
-        resolver_channel,
-        broadcaster_channel,
-        marshal_channel,
-    );
+    // Start block production and consensus components.
+    let engine_handle = engine.start(broadcaster_channel, marshal_channel);
 
     info!("consensus engine started");
 

@@ -87,10 +87,7 @@ where
         &self.mailbox_sender
     }
 
-    pub(crate) fn start(
-        mut self,
-        _dkg_manager_mailbox: crate::dkg::manager::Mailbox,
-    ) -> Handle<()> {
+    pub(crate) fn start(mut self) -> Handle<()> {
         spawn_cell!(self.context, self.run().await)
     }
 
