@@ -6,32 +6,29 @@
 //! - `subblocks` removed entirely
 //! - `TempoFullNode` → `PrivateNodeHandle`
 
-use std::{
-    sync::Arc,
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use alloy_consensus::BlockHeader as _;
-use alloy_primitives::{B256, Bytes, U256};
+use alloy_primitives::{Bytes, B256, U256};
 use alloy_rpc_types_engine::PayloadStatusEnum;
 use commonware_consensus::{
-    Heightable as _,
     marshal,
     types::{Height, Round, View},
+    Heightable as _,
 };
 use commonware_runtime::{
-    Clock, ContextCell, FutureExt, Handle, Metrics, Pacer, Spawner, Storage, spawn_cell,
+    spawn_cell, Clock, ContextCell, FutureExt, Handle, Metrics, Pacer, Spawner, Storage,
 };
 use commonware_utils::{channel::oneshot, SystemTimeExt};
 use eyre::{OptionExt as _, WrapErr as _};
-use futures::{StreamExt as _, channel::mpsc};
+use futures::{channel::mpsc, StreamExt as _};
 use rand_08::{CryptoRng, Rng};
 use reth_engine_primitives::ExecutionPayload as _;
 use reth_payload_primitives::EngineApiMessageVersion;
 use tracing::{info, info_span, warn};
 
 use crate::{
-    consensus::{Digest, block::Block},
+    consensus::{block::Block, Digest},
     epoch::SchemeProvider,
     node_handle::PrivateNodeHandle,
 };
@@ -77,12 +74,7 @@ where
 
         Ok(Self {
             context: ContextCell::new(context),
-            state: State {
-                execution_node,
-                executor,
-                marshal,
-                scheme_provider,
-            },
+            state: State { execution_node, executor, marshal, scheme_provider },
             fee_recipient,
             new_payload_wait_time,
             epoch_strategy,
@@ -97,7 +89,7 @@ where
 
     pub(crate) fn start(
         mut self,
-        _dkg_manager_mailbox: (),  // Placeholder for DKG manager mailbox
+        _dkg_manager_mailbox: crate::dkg::manager::Mailbox,
     ) -> Handle<()> {
         spawn_cell!(self.context, self.run().await)
     }
@@ -109,11 +101,7 @@ where
                     let digest = self.handle_genesis(epoch).await;
                     let _ = response.send(digest);
                 }
-                Message::Propose(Propose {
-                    parent,
-                    response,
-                    round,
-                }) => {
+                Message::Propose(Propose { parent, response, round }) => {
                     let result = self.handle_propose(parent, round).await;
                     match result {
                         Ok(digest) => {
@@ -145,13 +133,8 @@ where
 
     async fn handle_genesis(&self, _epoch: commonware_consensus::types::Epoch) -> Digest {
         // Return the genesis block hash from the chain spec.
-        let genesis_hash = self
-            .state
-            .execution_node
-            .block_hash(0)
-            .ok()
-            .flatten()
-            .unwrap_or(B256::ZERO);
+        let genesis_hash =
+            self.state.execution_node.block_hash(0).ok().flatten().unwrap_or(B256::ZERO);
         Digest(genesis_hash)
     }
 
@@ -166,7 +149,10 @@ where
         let parent = self
             .state
             .marshal
-            .subscribe(Some(commonware_consensus::types::Round::new(round.epoch(), parent_view)), parent_digest)
+            .subscribe(
+                Some(commonware_consensus::types::Round::new(round.epoch(), parent_view)),
+                parent_digest,
+            )
             .await
             .await
             .map_err(|_| eyre::eyre!("failed resolving parent block"))?;
@@ -177,7 +163,7 @@ where
         // Build standard Ethereum payload attributes.
         let payload_attributes = alloy_rpc_types_engine::PayloadAttributes {
             timestamp,
-            prev_randao: B256::ZERO,  // No beacon randomness in private chain
+            prev_randao: B256::ZERO, // No beacon randomness in private chain
             suggested_fee_recipient: self.fee_recipient,
             withdrawals: Some(vec![]),
             parent_beacon_block_root: Some(B256::ZERO),
@@ -203,9 +189,8 @@ where
             .await
             .wrap_err("failed sending FCU with payload attributes")?;
 
-        let payload_id = fcu_response
-            .payload_id
-            .ok_or_eyre("execution layer did not return payload ID")?;
+        let payload_id =
+            fcu_response.payload_id.ok_or_eyre("execution layer did not return payload ID")?;
 
         // Wait for the payload to be built.
         self.context.sleep(self.new_payload_wait_time).await;
@@ -227,13 +212,7 @@ where
     }
 
     async fn handle_verify(&mut self, verify: Verify) -> eyre::Result<bool> {
-        let Verify {
-            parent,
-            payload: block_digest,
-            proposer: _,
-            response,
-            round,
-        } = verify;
+        let Verify { parent, payload: block_digest, proposer: _, response, round } = verify;
 
         let (parent_view, parent_digest) = parent;
 
@@ -256,10 +235,7 @@ where
             .map_err(|_| eyre::eyre!("failed resolving parent block for verification"))?;
 
         // Update canonical head to parent.
-        if let Err(error) = self
-            .state
-            .executor
-            .canonicalize_head(parent.height(), parent.digest())
+        if let Err(error) = self.state.executor.canonicalize_head(parent.height(), parent.digest())
         {
             warn!(
                 %error,
@@ -275,10 +251,7 @@ where
             block_inner.hash(),
             &block_inner.into_block(),
         );
-        let execution_data = alloy_rpc_types_engine::ExecutionData {
-            payload,
-            sidecar,
-        };
+        let execution_data = alloy_rpc_types_engine::ExecutionData { payload, sidecar };
 
         let payload_status = self
             .state

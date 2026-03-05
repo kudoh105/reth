@@ -29,6 +29,10 @@ pub struct Args {
     #[arg(long = "consensus.listen-address", default_value = "127.0.0.1:8000")]
     pub listen_address: SocketAddr,
 
+    /// Comma-separated list of known peer addresses in the format `public_key@ip:port`.
+    #[arg(long = "consensus.known-peers", value_delimiter = ',')]
+    pub known_peers: Vec<String>,
+
     /// The socket address for consensus metrics.
     #[arg(long = "consensus.metrics-address", default_value = "127.0.0.1:8001")]
     pub metrics_address: SocketAddr,
@@ -214,9 +218,7 @@ pub struct PositiveDuration(jiff::SignedDuration);
 impl PositiveDuration {
     /// Converts to a `std::time::Duration`.
     pub fn into_duration(self) -> Duration {
-        self.0
-            .try_into()
-            .expect("must be positive. enforced when cli parsing.")
+        self.0.try_into().expect("must be positive. enforced when cli parsing.")
     }
 }
 
@@ -257,8 +259,6 @@ impl Args {
 
     /// Returns the public key derived from the configured signing key.
     pub fn public_key(&self) -> eyre::Result<Option<PublicKey>> {
-        Ok(self
-            .signing_key()?
-            .map(|signing_key| signing_key.public_key()))
+        Ok(self.signing_key()?.map(|signing_key| signing_key.public_key()))
     }
 }
