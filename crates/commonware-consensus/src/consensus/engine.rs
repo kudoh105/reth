@@ -15,7 +15,7 @@ use commonware_broadcast::buffered;
 use commonware_consensus::{
     marshal,
     simplex::scheme::bls12381_threshold::vrf::Scheme,
-    types::{FixedEpocher, ViewDelta},
+    types::{FixedEpocher, Height, Round, ViewDelta},
     Reporters,
 };
 use commonware_cryptography::{
@@ -246,7 +246,7 @@ where
         info!(elapsed = ?start.elapsed(), "restored finalized blocks archive");
 
         let epoch_strategy = FixedEpocher::new(NZU64!(epoch_length));
-        let (marshal, marshal_mailbox, last_finalized_height) = marshal::Actor::init(
+        let (marshal, mut marshal_mailbox, last_finalized_height) = marshal::Actor::init(
             context.with_label("marshal"),
             finalizations_by_height,
             finalized_blocks,
@@ -269,6 +269,18 @@ where
             },
         )
         .await;
+
+        // On a fresh chain, the marshal has no blocks. Pre-register the genesis
+        // block so the first proposal can resolve its parent via marshal.subscribe().
+        if last_finalized_height == Height::zero() {
+            let genesis_sealed = execution_node.genesis_block();
+            let genesis_wrapper = Block::from_execution_block(genesis_sealed);
+            info!(
+                genesis_hash = %genesis_wrapper.block_hash(),
+                "pre-registering genesis block in marshal",
+            );
+            marshal_mailbox.verified(Round::zero(), genesis_wrapper).await;
+        }
 
         let (executor, executor_mailbox) = crate::executor::init(
             context.with_label("executor"),
