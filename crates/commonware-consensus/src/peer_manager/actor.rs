@@ -5,13 +5,12 @@
 use commonware_consensus::marshal::Update;
 use commonware_cryptography::ed25519::PublicKey;
 use commonware_p2p::{AddressableManager, Provider};
-use commonware_runtime::{ContextCell, Spawner, spawn_cell};
+use commonware_runtime::{spawn_cell, ContextCell, Spawner};
 use commonware_utils::Acknowledgement;
-use futures::{StreamExt as _, channel::mpsc};
-use tracing::{Span, info, info_span, instrument, warn};
+use futures::{channel::mpsc, StreamExt as _};
+use tracing::{info, info_span, instrument, warn, Span};
 
-use crate::consensus::block::Block;
-use crate::node_handle::PrivateNodeHandle;
+use crate::{consensus::block::Block, node_handle::PrivateNodeHandle};
 
 use super::ingress::{Message, MessageWithCause};
 
@@ -34,11 +33,7 @@ where
         execution_node: PrivateNodeHandle,
         mailbox: mpsc::UnboundedReceiver<MessageWithCause>,
     ) -> Self {
-        Self {
-            oracle,
-            execution_node,
-            mailbox,
-        }
+        Self { oracle, execution_node, mailbox }
     }
 
     async fn run(mut self) {

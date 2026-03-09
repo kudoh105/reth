@@ -165,6 +165,18 @@ pub async fn run_consensus_stack(
         config::MARSHAL_LIMIT,
         args.message_backlog,
     );
+    let votes_channel =
+        network.register(config::VOTES_CHANNEL_IDENT, config::VOTES_LIMIT, args.message_backlog);
+    let certificates_channel = network.register(
+        config::CERTIFICATES_CHANNEL_IDENT,
+        config::CERTIFICATES_LIMIT,
+        args.message_backlog,
+    );
+    let resolver_channel = network.register(
+        config::RESOLVER_CHANNEL_IDENT,
+        config::RESOLVER_LIMIT,
+        args.message_backlog,
+    );
 
     // Build the consensus engine.
     let builder = consensus::engine::Builder {
@@ -197,7 +209,13 @@ pub async fn run_consensus_stack(
     let network_handle = network.start();
 
     // Start block production and consensus components.
-    let engine_handle = engine.start(broadcaster_channel, marshal_channel);
+    let engine_handle = engine.start(
+        broadcaster_channel,
+        marshal_channel,
+        votes_channel,
+        certificates_channel,
+        resolver_channel,
+    );
 
     info!("consensus engine started");
 

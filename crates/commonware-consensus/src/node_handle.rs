@@ -9,9 +9,7 @@ use reth_chainspec::{ChainSpec, ChainSpecProvider};
 use reth_db::DatabaseEnv;
 use reth_engine_primitives::ConsensusEngineHandle;
 use reth_ethereum_engine_primitives::EthEngineTypes;
-use reth_node_builder::{
-    FullNode, NodeAdapter, RethFullAdapter,
-};
+use reth_node_builder::{FullNode, NodeAdapter, RethFullAdapter};
 use reth_payload_builder::PayloadBuilderHandle;
 use reth_provider::{BlockHashReader, BlockNumReader};
 
@@ -72,10 +70,7 @@ impl PrivateNodeHandle {
     pub fn new<Node, AddOns>(node: &FullNode<Node, AddOns>) -> Self
     where
         Node: reth_node_api::FullNodeComponents<
-            Types: reth_node_api::NodeTypes<
-                Payload = EthEngineTypes,
-                ChainSpec = ChainSpec,
-            >,
+            Types: reth_node_api::NodeTypes<Payload = EthEngineTypes, ChainSpec = ChainSpec>,
         >,
         Node::Provider: BlockHashReader + BlockNumReader + Clone + 'static,
         AddOns: reth_node_builder::rpc::RethRpcAddOns<Node>,
@@ -90,9 +85,7 @@ impl PrivateNodeHandle {
             beacon_engine,
             payload_builder,
             chain_spec,
-            provider: ProviderHandle {
-                inner: Arc::new(provider),
-            },
+            provider: ProviderHandle { inner: Arc::new(provider) },
         }
     }
 

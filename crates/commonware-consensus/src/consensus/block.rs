@@ -7,7 +7,7 @@ use alloy_consensus::BlockHeader as _;
 use alloy_primitives::B256;
 use bytes::{Buf, BufMut};
 use commonware_codec::{EncodeSize, Read, Write};
-use commonware_consensus::{Heightable, types::Height};
+use commonware_consensus::{types::Height, Heightable};
 use commonware_cryptography::{Committable, Digestible};
 use reth_ethereum_primitives::EthPrimitives;
 use reth_primitives_traits::SealedBlock;

@@ -2,15 +2,15 @@
 //!
 //! Ported directly from Tempo.
 
-use commonware_consensus::{Reporter, marshal::Update, types::Height};
+use commonware_consensus::{marshal::Update, types::Height, Reporter};
 use eyre::WrapErr as _;
 use futures::{
-    SinkExt as _,
     channel::{mpsc, oneshot},
+    SinkExt as _,
 };
 use tracing::Span;
 
-use crate::consensus::{Digest, block::Block};
+use crate::consensus::{block::Block, Digest};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Mailbox {
@@ -26,11 +26,7 @@ impl Mailbox {
     ) -> eyre::Result<oneshot::Receiver<()>> {
         let (tx, rx) = oneshot::channel();
         self.inner
-            .unbounded_send(Message::in_current_span(CanonicalizeHead {
-                height,
-                digest,
-                ack: tx,
-            }))
+            .unbounded_send(Message::in_current_span(CanonicalizeHead { height, digest, ack: tx }))
             .wrap_err("failed sending canonicalize request to agent, this means it exited")?;
 
         Ok(rx)
@@ -45,10 +41,7 @@ pub(super) struct Message {
 
 impl Message {
     fn in_current_span(command: impl Into<Command>) -> Self {
-        Self {
-            cause: Span::current(),
-            command: command.into(),
-        }
+        Self { cause: Span::current(), command: command.into() }
     }
 }
 

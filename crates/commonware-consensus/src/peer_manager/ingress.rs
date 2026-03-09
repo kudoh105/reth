@@ -2,12 +2,12 @@
 //!
 //! Ported directly from Tempo.
 
-use commonware_consensus::{Reporter, marshal::Update};
+use commonware_consensus::{marshal::Update, Reporter};
 use commonware_p2p::{Address, AddressableManager, Provider};
 use commonware_utils::ordered::{Map, Set};
 use eyre::WrapErr as _;
 use futures::channel::{mpsc, oneshot};
-use tracing::{Span, error};
+use tracing::{error, Span};
 
 type SubscribeReceiver =
     commonware_utils::channel::mpsc::UnboundedReceiver<(u64, Set<PublicKey>, Set<PublicKey>)>;
@@ -34,28 +34,15 @@ pub(super) struct MessageWithCause {
 
 impl MessageWithCause {
     fn in_current_span(cmd: impl Into<Message>) -> Self {
-        Self {
-            cause: Span::current(),
-            message: cmd.into(),
-        }
+        Self { cause: Span::current(), message: cmd.into() }
     }
 }
 
 pub(super) enum Message {
-    Track {
-        id: u64,
-        peers: Map<PublicKey, Address>,
-    },
-    Overwrite {
-        peers: Map<PublicKey, Address>,
-    },
-    PeerSet {
-        id: u64,
-        response: oneshot::Sender<Option<Set<PublicKey>>>,
-    },
-    Subscribe {
-        response: oneshot::Sender<SubscribeReceiver>,
-    },
+    Track { id: u64, peers: Map<PublicKey, Address> },
+    Overwrite { peers: Map<PublicKey, Address> },
+    PeerSet { id: u64, response: oneshot::Sender<Option<Set<PublicKey>>> },
+    Subscribe { response: oneshot::Sender<SubscribeReceiver> },
     Finalized(Box<Update<Block>>),
 }
 
@@ -71,11 +58,10 @@ impl Provider for Mailbox {
     async fn peer_set(&mut self, id: u64) -> Option<Set<Self::PublicKey>> {
         let (tx, rx) = oneshot::channel();
         if let Err(error) =
-            self.inner
-                .unbounded_send(MessageWithCause::in_current_span(Message::PeerSet {
-                    id,
-                    response: tx,
-                }))
+            self.inner.unbounded_send(MessageWithCause::in_current_span(Message::PeerSet {
+                id,
+                response: tx,
+            }))
         {
             error!(%error, "failed to send message to peer_manager");
             return None;
@@ -94,11 +80,9 @@ impl Provider for Mailbox {
 
         let (_, fallback_rx) = commonware_utils::channel::mpsc::unbounded_channel();
 
-        if let Err(error) =
-            self.inner
-                .unbounded_send(MessageWithCause::in_current_span(Message::Subscribe {
-                    response: tx,
-                }))
+        if let Err(error) = self
+            .inner
+            .unbounded_send(MessageWithCause::in_current_span(Message::Subscribe { response: tx }))
         {
             error!(%error, "failed to send message to peer_manager");
             return fallback_rx;
@@ -121,10 +105,7 @@ impl AddressableManager for Mailbox {
     async fn track(&mut self, id: u64, peers: Map<Self::PublicKey, Address>) {
         if let Err(error) = self
             .inner
-            .unbounded_send(MessageWithCause::in_current_span(Message::Track {
-                id,
-                peers,
-            }))
+            .unbounded_send(MessageWithCause::in_current_span(Message::Track { id, peers }))
             .wrap_err("actor no longer running")
         {
             error!(%error, "failed to send message to peer_manager");
@@ -134,9 +115,7 @@ impl AddressableManager for Mailbox {
     async fn overwrite(&mut self, peers: Map<Self::PublicKey, Address>) {
         if let Err(error) = self
             .inner
-            .unbounded_send(MessageWithCause::in_current_span(Message::Overwrite {
-                peers,
-            }))
+            .unbounded_send(MessageWithCause::in_current_span(Message::Overwrite { peers }))
             .wrap_err("actor no longer running")
         {
             error!(%error, "failed to send message to peer_manager");
@@ -148,10 +127,7 @@ impl Reporter for Mailbox {
     type Activity = Update<Block>;
 
     async fn report(&mut self, activity: Self::Activity) {
-        if let Err(error) = self
-            .inner
-            .unbounded_send(MessageWithCause::in_current_span(activity))
-        {
+        if let Err(error) = self.inner.unbounded_send(MessageWithCause::in_current_span(activity)) {
             error!(%error, "failed to send message to peer_manager");
         }
     }

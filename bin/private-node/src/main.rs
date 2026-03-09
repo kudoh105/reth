@@ -18,11 +18,11 @@ static ALLOC: reth_cli_util::allocator::Allocator = reth_cli_util::allocator::ne
 use clap::Parser;
 use commonware_runtime::{Metrics, Runner};
 use eyre::WrapErr as _;
+use reth_commonware_consensus::{run_consensus_stack, PrivateNodeHandle};
 use reth_ethereum_cli::{chainspec::EthereumChainSpecParser, Cli, Commands};
 use reth_node_builder::{NodeHandle, WithLaunchContext};
 use reth_node_ethereum::EthereumNode;
 use reth_rpc_server_types::DefaultRpcModuleValidator;
-use reth_commonware_consensus::{run_consensus_stack, PrivateNodeHandle};
 
 use std::{sync::Arc, thread};
 use tokio::sync::oneshot;
@@ -42,11 +42,7 @@ fn main() -> eyre::Result<()> {
         unsafe { std::env::set_var("RUST_BACKTRACE", "1") };
     }
 
-    let cli = Cli::<
-        EthereumChainSpecParser,
-        PrivateNodeArgs,
-        DefaultRpcModuleValidator,
-    >::parse();
+    let cli = Cli::<EthereumChainSpecParser, PrivateNodeArgs, DefaultRpcModuleValidator>::parse();
 
     let is_node = matches!(cli.command, Commands::Node(_));
 
@@ -63,13 +59,15 @@ fn main() -> eyre::Result<()> {
             return Ok(());
         }
 
-        let (node, args) = node_handle_rx.blocking_recv().wrap_err(
-            "channel closed before handle to the execution node could be received",
-        )?;
+        let (node, args) = node_handle_rx
+            .blocking_recv()
+            .wrap_err("channel closed before handle to the execution node could be received")?;
 
-        let consensus_storage = args.consensus.storage_dir.clone().unwrap_or_else(|| {
-            std::path::PathBuf::from("./data/consensus")
-        });
+        let consensus_storage = args
+            .consensus
+            .storage_dir
+            .clone()
+            .unwrap_or_else(|| std::path::PathBuf::from("./data/consensus"));
 
         info_span!("prepare_consensus").in_scope(|| {
             info!(
@@ -116,10 +114,7 @@ fn main() -> eyre::Result<()> {
 
     // Run Reth EL with standard EthereumNode.
     cli.run(async move |builder, args: PrivateNodeArgs| {
-        let NodeHandle {
-            node,
-            node_exit_future,
-        } = builder
+        let NodeHandle { node, node_exit_future } = builder
             .node(EthereumNode::default())
             .apply(|mut builder| {
                 // Disable devp2p discovery (we use Commonware P2P).
@@ -130,26 +125,26 @@ fn main() -> eyre::Result<()> {
             .await
             .wrap_err("failed launching execution node")?;
 
-            // Extract handles and send to consensus thread.
-            let private_handle = PrivateNodeHandle::new(&node);
-            let _ = node_handle_tx.send((private_handle, args));
+        // Extract handles and send to consensus thread.
+        let private_handle = PrivateNodeHandle::new(&node);
+        let _ = node_handle_tx.send((private_handle, args));
 
-            // Wait for shutdown.
-            tokio::select! {
-                _ = node_exit_future => {
-                    tracing::info!("execution node exited");
-                }
-                _ = &mut consensus_dead_rx => {
-                    tracing::info!("consensus node exited");
-                }
-                _ = tokio::signal::ctrl_c() => {
-                    tracing::info!("received shutdown signal");
-                }
+        // Wait for shutdown.
+        tokio::select! {
+            _ = node_exit_future => {
+                tracing::info!("execution node exited");
             }
+            _ = &mut consensus_dead_rx => {
+                tracing::info!("consensus node exited");
+            }
+            _ = tokio::signal::ctrl_c() => {
+                tracing::info!("received shutdown signal");
+            }
+        }
 
-            Ok(())
-        })
-        .wrap_err("execution node failed")?;
+        Ok(())
+    })
+    .wrap_err("execution node failed")?;
 
     shutdown_token.cancel();
 

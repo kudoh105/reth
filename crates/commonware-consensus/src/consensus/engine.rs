@@ -13,21 +13,22 @@ use std::{
 
 use commonware_broadcast::buffered;
 use commonware_consensus::{
-    Reporters, marshal,
+    marshal,
     simplex::scheme::bls12381_threshold::vrf::Scheme,
     types::{FixedEpocher, ViewDelta},
+    Reporters,
 };
 use commonware_cryptography::{
-    Signer as _,
     bls12381::primitives::{group::Share, variant::MinSig},
     certificate::Scheme as _,
     ed25519::{PrivateKey, PublicKey},
+    Signer as _,
 };
 use commonware_p2p::{AddressableManager, Blocker, Receiver, Sender};
 use commonware_parallel::Sequential;
 use commonware_runtime::{
-    Clock, ContextCell, Handle, Metrics, Network, Pacer, Spawner, Storage, buffer::paged::CacheRef,
-    spawn_cell,
+    buffer::paged::CacheRef, spawn_cell, Clock, ContextCell, Handle, Metrics, Network, Pacer,
+    Spawner, Storage,
 };
 use commonware_storage::archive::immutable;
 use commonware_utils::NZU64;
@@ -39,6 +40,7 @@ use tracing::info;
 use crate::{
     config::BLOCKS_FREEZER_TABLE_INITIAL_SIZE_BYTES,
     consensus::application,
+    dkg,
     epoch::{self, SchemeProvider},
     genesis::PrivateGenesisInfo,
     node_handle::PrivateNodeHandle,
@@ -254,8 +256,7 @@ where
                 partition_prefix: self.partition_prefix.clone(),
                 mailbox_size: self.mailbox_size,
                 view_retention_timeout: ViewDelta::new(
-                    self.views_to_track
-                        .saturating_mul(SYNCER_ACTIVITY_TIMEOUT_MULTIPLIER),
+                    self.views_to_track.saturating_mul(SYNCER_ACTIVITY_TIMEOUT_MULTIPLIER),
                 ),
                 prunable_items_per_section: PRUNABLE_ITEMS_PER_SECTION,
                 page_cache: page_cache_ref.clone(),
@@ -294,8 +295,38 @@ where
         .await
         .wrap_err("failed initializing application actor")?;
 
-        // TODO: Initialize epoch_manager and dkg_manager from Tempo.
-        // These require full integration with Commonware simplex voting.
+        let (epoch_manager, epoch_manager_mailbox) = epoch::manager::init(
+            context.with_label("epoch_manager"),
+            epoch::manager::Config {
+                application: application_mailbox.clone(),
+                blocker: self.blocker.clone(),
+                page_cache: page_cache_ref.clone(),
+                epoch_strategy: epoch_strategy.clone(),
+                time_for_peer_response: self.time_for_peer_response,
+                time_to_propose: self.time_to_propose,
+                mailbox_size: self.mailbox_size,
+                marshal: marshal_mailbox.clone(),
+                scheme_provider: scheme_provider.clone(),
+                time_to_collect_notarizations: self.time_to_collect_notarizations,
+                time_to_retry_nullify_broadcast: self.time_to_retry_nullify_broadcast,
+                partition_prefix: self.partition_prefix.clone(),
+                views_to_track: ViewDelta::new(self.views_to_track),
+                views_until_leader_skip: ViewDelta::new(self.views_until_leader_skip),
+            },
+        );
+
+        let (dkg_manager, dkg_manager_mailbox) = dkg::manager::init(
+            context.with_label("dkg_manager"),
+            dkg::manager::Config {
+                signer: self.signer.clone(),
+                share: self.share.clone(),
+                epoch_strategy: epoch_strategy.clone(),
+                execution_node: execution_node.clone(),
+                epoch_manager: epoch_manager_mailbox.clone(),
+                scheme_provider: scheme_provider.clone(),
+                peer_manager: peer_manager_mailbox.clone(),
+            },
+        );
 
         Ok(Engine {
             context: ContextCell::new(context),
@@ -313,6 +344,11 @@ where
 
             peer_manager,
             peer_manager_mailbox,
+
+            epoch_manager,
+            epoch_manager_mailbox,
+            dkg_manager,
+            dkg_manager_mailbox,
         })
     }
 }
@@ -347,6 +383,11 @@ where
 
     peer_manager: peer_manager::Actor<TPeerManager>,
     peer_manager_mailbox: peer_manager::Mailbox,
+
+    epoch_manager: epoch::manager::Actor<TContext, TBlocker>,
+    epoch_manager_mailbox: epoch::manager::Mailbox,
+    dkg_manager: dkg::manager::Actor<TContext>,
+    dkg_manager_mailbox: dkg::manager::Mailbox,
 }
 
 impl<TContext, TBlocker, TPeerManager> Engine<TContext, TBlocker, TPeerManager>
@@ -363,24 +404,34 @@ where
     TBlocker: Blocker<PublicKey = PublicKey> + Sync,
     TPeerManager: AddressableManager<PublicKey = PublicKey> + Sync,
 {
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "following commonware's style of writing"
-    )]
+    #[expect(clippy::too_many_arguments, reason = "following commonware's style of writing")]
     pub fn start(
         mut self,
         broadcast_network: (
             impl Sender<PublicKey = PublicKey>,
             impl Receiver<PublicKey = PublicKey>,
         ),
-        marshal_network: (
+        marshal_network: (impl Sender<PublicKey = PublicKey>, impl Receiver<PublicKey = PublicKey>),
+        votes_network: (impl Sender<PublicKey = PublicKey>, impl Receiver<PublicKey = PublicKey>),
+        certificates_network: (
+            impl Sender<PublicKey = PublicKey>,
+            impl Receiver<PublicKey = PublicKey>,
+        ),
+        resolver_network: (
             impl Sender<PublicKey = PublicKey>,
             impl Receiver<PublicKey = PublicKey>,
         ),
     ) -> Handle<eyre::Result<()>> {
         spawn_cell!(
             self.context,
-            self.run(broadcast_network, marshal_network).await
+            self.run(
+                broadcast_network,
+                marshal_network,
+                votes_network,
+                certificates_network,
+                resolver_network,
+            )
+            .await
         )
     }
 
@@ -390,14 +441,18 @@ where
             impl Sender<PublicKey = PublicKey>,
             impl Receiver<PublicKey = PublicKey>,
         ),
-        marshal_channel: (
+        marshal_channel: (impl Sender<PublicKey = PublicKey>, impl Receiver<PublicKey = PublicKey>),
+        votes_channel: (impl Sender<PublicKey = PublicKey>, impl Receiver<PublicKey = PublicKey>),
+        certificates_channel: (
+            impl Sender<PublicKey = PublicKey>,
+            impl Receiver<PublicKey = PublicKey>,
+        ),
+        resolver_channel: (
             impl Sender<PublicKey = PublicKey>,
             impl Receiver<PublicKey = PublicKey>,
         ),
     ) -> eyre::Result<()> {
-        let peer_manager = self
-            .peer_manager
-            .start(self.context.with_label("peer_manager"));
+        let peer_manager = self.peer_manager.start(self.context.with_label("peer_manager"));
 
         let broadcast = self.broadcast.start(broadcast_channel);
         let resolver =
@@ -409,13 +464,21 @@ where
         let marshal = self.marshal.start(
             Reporters::from((
                 self.executor_mailbox.clone(),
-                Reporters::from((self.peer_manager_mailbox, self.executor_mailbox)),
+                Reporters::from((
+                    self.dkg_manager_mailbox,
+                    Reporters::from((
+                        self.epoch_manager_mailbox,
+                        Reporters::from((self.peer_manager_mailbox, self.executor_mailbox)),
+                    )),
+                )),
             )),
             self.broadcast_mailbox,
             resolver,
         );
 
-        // TODO: Start epoch_manager, dkg_manager, and simplex voting networks.
+        let epoch_manager =
+            self.epoch_manager.start(votes_channel, certificates_channel, resolver_channel);
+        let dkg_manager = self.dkg_manager.start();
 
         try_join_all(vec![
             application,
@@ -423,6 +486,8 @@ where
             executor,
             marshal,
             peer_manager,
+            epoch_manager,
+            dkg_manager,
         ])
         .await
         .map(|_| ())
