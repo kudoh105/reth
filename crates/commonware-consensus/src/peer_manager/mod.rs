@@ -20,10 +20,7 @@ pub(crate) struct Config<TOracle> {
 }
 
 pub(crate) fn init<TPeerManager>(
-    Config {
-        oracle,
-        execution_node,
-    }: Config<TPeerManager>,
+    Config { oracle, execution_node }: Config<TPeerManager>,
 ) -> (Actor<TPeerManager>, Mailbox)
 where
     TPeerManager: AddressableManager<PublicKey = PublicKey>,

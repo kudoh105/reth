@@ -6,9 +6,9 @@ use std::{fmt::Display, path::Path};
 
 use commonware_codec::{DecodeExt as _, Encode as _};
 use commonware_cryptography::{
-    Signer,
     bls12381::primitives::group::Share,
     ed25519::{PrivateKey, PublicKey},
+    Signer,
 };
 
 /// An ed25519 signing key for P2P authentication.
@@ -38,9 +38,7 @@ impl SigningKey {
 
     /// Writes the signing key to `writer`.
     pub fn to_writer<W: std::io::Write>(&self, mut writer: W) -> Result<(), SigningKeyError> {
-        writer
-            .write_all(self.to_string().as_bytes())
-            .map_err(SigningKeyErrorKind::Write)?;
+        writer.write_all(self.to_string().as_bytes()).map_err(SigningKeyErrorKind::Write)?;
         Ok(())
     }
 

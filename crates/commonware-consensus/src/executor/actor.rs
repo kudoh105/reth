@@ -6,30 +6,31 @@
 use std::{pin::Pin, sync::Arc, time::Duration};
 
 use alloy_rpc_types_engine::ForkchoiceState;
-use commonware_consensus::{Heightable as _, marshal::Update, types::Height};
+use commonware_consensus::{marshal::Update, types::Height, Heightable as _};
 
-use commonware_runtime::{Clock, ContextCell, FutureExt, Handle, Metrics, Pacer, Spawner, spawn_cell};
-use commonware_utils::{Acknowledgement, acknowledgement::Exact};
-use eyre::{OptionExt as _, Report, WrapErr as _, ensure};
+use alloy_rpc_types_engine::ExecutionData;
+use commonware_runtime::{
+    spawn_cell, Clock, ContextCell, FutureExt, Handle, Metrics, Pacer, Spawner,
+};
+use commonware_utils::{acknowledgement::Exact, Acknowledgement};
+use eyre::{ensure, OptionExt as _, Report, WrapErr as _};
 use futures::{
-    FutureExt as _, StreamExt as _,
     channel::{
         mpsc::{self, UnboundedReceiver},
         oneshot,
     },
-    select_biased,
+    select_biased, FutureExt as _, StreamExt as _,
 };
-use alloy_rpc_types_engine::ExecutionData;
 use reth_payload_primitives::EngineApiMessageVersion;
 use tracing::{
-    Level, Span, debug, error, error_span, info, info_span, instrument, warn, warn_span,
+    debug, error, error_span, info, info_span, instrument, warn, warn_span, Level, Span,
 };
 
 use crate::{
-    consensus::{Digest, block::Block},
+    consensus::{block::Block, Digest},
     executor::{
-        Config,
         ingress::{CanonicalizeHead, Command, Message},
+        Config,
     },
     node_handle::PrivateNodeHandle,
 };
@@ -88,12 +89,8 @@ where
         config: super::Config,
         mailbox: UnboundedReceiver<super::ingress::Message>,
     ) -> eyre::Result<Self> {
-        let Config {
-            execution_node,
-            last_finalized_height,
-            marshal,
-            fcu_heartbeat_interval,
-        } = config;
+        let Config { execution_node, last_finalized_height, marshal, fcu_heartbeat_interval } =
+            config;
         let last_execution_finalized_height = execution_node
             .last_block_number()
             .wrap_err("unable to read latest block number from execution layer")?;
@@ -142,17 +139,15 @@ where
 
         let mut backfill_on_start = {
             let marshal = self.marshal.clone();
-            std::pin::pin!(
-                futures::stream::iter(
-                    self.last_execution_finalized_height.get() + 1
-                        ..=self.last_consensus_finalized_height.get(),
-                )
-                .then(move |height| {
-                    let mut marshal = marshal.clone();
-                    async move { (height, marshal.get_block(Height::new(height)).await) }
-                })
-                .fuse()
+            std::pin::pin!(futures::stream::iter(
+                self.last_execution_finalized_height.get() + 1..=
+                    self.last_consensus_finalized_height.get(),
             )
+            .then(move |height| {
+                let mut marshal = marshal.clone();
+                async move { (height, marshal.get_block(Height::new(height)).await) }
+            })
+            .fuse())
         };
 
         loop {
@@ -255,19 +250,11 @@ where
     async fn handle_message(&mut self, message: Message) -> eyre::Result<()> {
         let cause = message.cause;
         match message.command {
-            Command::CanonicalizeHead(CanonicalizeHead {
-                height,
-                digest,
-                ack,
-            }) => {
-                let _ = self
-                    .canonicalize(cause, HeadOrFinalized::Head, height, digest, ack)
-                    .await;
+            Command::CanonicalizeHead(CanonicalizeHead { height, digest, ack }) => {
+                let _ = self.canonicalize(cause, HeadOrFinalized::Head, height, digest, ack).await;
             }
             Command::Finalize(finalized) => {
-                self.finalize(cause, *finalized)
-                    .await
-                    .wrap_err("failed handling finalization")?;
+                self.finalize(cause, *finalized).await.wrap_err("failed handling finalization")?;
             }
         }
         Ok(())
@@ -312,11 +299,7 @@ where
         let fcu_response = self
             .execution_node
             .beacon_engine_handle()
-            .fork_choice_updated(
-                new_canonicalized.forkchoice,
-                None,
-                EngineApiMessageVersion::V3,
-            )
+            .fork_choice_updated(new_canonicalized.forkchoice, None, EngineApiMessageVersion::V3)
             .pace(&self.context, Duration::from_millis(20))
             .await
             .wrap_err("failed requesting execution layer to update forkchoice state")?;
@@ -392,10 +375,7 @@ where
             block_inner.hash(),
             &block_inner.into_block(),
         );
-        let execution_data = ExecutionData {
-            payload,
-            sidecar,
-        };
+        let execution_data = ExecutionData { payload, sidecar };
         let payload_status = self
             .execution_node
             .beacon_engine_handle()

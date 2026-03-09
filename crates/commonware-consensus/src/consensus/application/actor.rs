@@ -9,7 +9,7 @@
 use std::{sync::Arc, time::Duration};
 
 use alloy_consensus::BlockHeader as _;
-use alloy_primitives::{Bytes, B256, U256};
+use alloy_primitives::{B256, U256};
 use alloy_rpc_types_engine::PayloadStatusEnum;
 use commonware_consensus::{
     marshal,
@@ -24,7 +24,7 @@ use eyre::{OptionExt as _, WrapErr as _};
 use futures::{channel::mpsc, StreamExt as _};
 use rand_08::{CryptoRng, Rng};
 use reth_engine_primitives::ExecutionPayload as _;
-use reth_payload_primitives::EngineApiMessageVersion;
+use reth_payload_primitives::{EngineApiMessageVersion, PayloadKind};
 use tracing::{info, info_span, warn};
 
 use crate::{
@@ -110,14 +110,8 @@ where
                     }
                 }
                 Message::Verify(verify) => {
-                    let result = self.handle_verify(*verify).await;
-                    match result {
-                        Ok(is_valid) => {
-                            let _ = verify_response_placeholder(is_valid);
-                        }
-                        Err(e) => {
-                            warn!("failed to verify block: {e:?}");
-                        }
+                    if let Err(e) = self.handle_verify(*verify).await {
+                        warn!("failed to verify block: {e:?}");
                     }
                 }
                 Message::Broadcast(Broadcast { payload }) => {
@@ -192,20 +186,45 @@ where
         // Wait for the payload to be built.
         self.context.sleep(self.new_payload_wait_time).await;
 
-        // Resolve the built payload from PayloadBuilderHandle.
-        // NOTE: In a full implementation this would use
-        // payload_builder_handle().resolve(payload_id) but the exact API depends
-        // on Reth version. For now we return a TODO digest.
+        // Resolve the built payload.
+        let resolved = self
+            .state
+            .execution_node
+            .payload_builder_handle()
+            .resolve_kind(payload_id, PayloadKind::WaitForPending)
+            .await
+            .ok_or_eyre("payload builder returned None for payload")?
+            .wrap_err("payload builder failed to build payload")?;
+
+        let sealed_block = resolved.block().clone();
+        let block = Block::from_execution_block(sealed_block);
+        let digest = block.digest();
+
         info!(
             %payload_id,
-            "payload build triggered; waiting for resolution"
+            %digest,
+            "payload resolved successfully",
         );
 
-        // TODO: Complete payload resolution and return the actual block digest.
-        // This requires integrating with PayloadBuilderHandle::resolve().
-        Err(eyre::eyre!(
-            "payload resolution not yet implemented - requires PayloadBuilderHandle integration"
-        ))
+        // Send new_payload to EL so the block is known before consensus distributes it.
+        let block_inner = block.clone().into_inner();
+        let (payload, sidecar) = alloy_rpc_types_engine::ExecutionPayload::from_block_unchecked(
+            block_inner.hash(),
+            &block_inner.into_block(),
+        );
+        let execution_data = alloy_rpc_types_engine::ExecutionData { payload, sidecar };
+        self.state
+            .execution_node
+            .beacon_engine_handle()
+            .new_payload(execution_data)
+            .pace(&self.context, Duration::from_millis(20))
+            .await
+            .wrap_err("failed sending new_payload for proposed block")?;
+
+        // Register block with marshal for P2P distribution.
+        self.state.marshal.verified(round, block).await;
+
+        Ok(digest)
     }
 
     async fn handle_verify(&mut self, verify: Verify) -> eyre::Result<bool> {
@@ -284,6 +303,3 @@ where
         // This is a notification that the block should be broadcast.
     }
 }
-
-// Placeholder for handling is_valid responses for the verify flow above.
-fn verify_response_placeholder(_is_valid: bool) {}

@@ -8,14 +8,14 @@
 //! # How it works
 //!
 //! 1. On initialization, reads validators from the chainspec genesis.
-//! 2. Uses `dkg::deal()` with a deterministic seed to generate a shared
-//!    polynomial and per-validator shares.
-//! 3. If this node has a signing share (index-matched), creates a
-//!    `Scheme::signer(...)`, otherwise `Scheme::verifier(...)`.
+//! 2. Uses `dkg::deal()` with a deterministic seed to generate a shared polynomial and
+//!    per-validator shares.
+//! 3. If this node has a signing share (index-matched), creates a `Scheme::signer(...)`, otherwise
+//!    `Scheme::verifier(...)`.
 //! 4. Registers the scheme with `SchemeProvider` for epoch 0.
 //! 5. Tells the epoch manager to enter epoch 0.
-//! 6. Listens for finalized blocks. At epoch boundaries, registers the same
-//!    scheme for the next epoch and tells the epoch manager to transition.
+//! 6. Listens for finalized blocks. At epoch boundaries, registers the same scheme for the next
+//!    epoch and tells the epoch manager to transition.
 
 use commonware_codec::DecodeExt as _;
 use commonware_consensus::{

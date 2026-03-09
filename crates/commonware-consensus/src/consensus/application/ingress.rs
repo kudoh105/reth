@@ -3,14 +3,14 @@
 //! Ported from Tempo without changes (subblocks removed upstream in engine).
 
 use commonware_consensus::{
-    Automaton, CertifiableAutomaton, Relay,
     simplex::types::Context,
     types::{Epoch, Round, View},
+    Automaton, CertifiableAutomaton, Relay,
 };
 
 use commonware_cryptography::ed25519::PublicKey;
 use commonware_utils::channel::oneshot;
-use futures::{SinkExt as _, channel::mpsc};
+use futures::{channel::mpsc, SinkExt as _};
 
 use crate::consensus::Digest;
 
@@ -88,30 +88,16 @@ impl Automaton for Mailbox {
     async fn genesis(&mut self, epoch: Epoch) -> Self::Digest {
         let (tx, rx) = oneshot::channel();
         self.inner
-            .send(
-                Genesis {
-                    epoch,
-                    response: tx,
-                }
-                .into(),
-            )
+            .send(Genesis { epoch, response: tx }.into())
             .await
             .expect("application is present and ready to receive genesis");
-        rx.await
-            .expect("application returns the digest of the genesis")
+        rx.await.expect("application returns the digest of the genesis")
     }
 
     async fn propose(&mut self, context: Self::Context) -> oneshot::Receiver<Self::Digest> {
         let (tx, rx) = oneshot::channel();
         self.inner
-            .send(
-                Propose {
-                    parent: context.parent,
-                    response: tx,
-                    round: context.round,
-                }
-                .into(),
-            )
+            .send(Propose { parent: context.parent, response: tx, round: context.round }.into())
             .await
             .expect("application is present and ready to receive proposals");
         rx
