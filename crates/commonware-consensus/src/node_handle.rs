@@ -5,12 +5,14 @@
 
 use std::sync::Arc;
 
-use reth_chainspec::{ChainSpec, ChainSpecProvider};
+use reth_chainspec::{ChainSpec, ChainSpecProvider, EthChainSpec};
 use reth_db::DatabaseEnv;
 use reth_engine_primitives::ConsensusEngineHandle;
 use reth_ethereum_engine_primitives::EthEngineTypes;
+use reth_ethereum_primitives::EthPrimitives;
 use reth_node_builder::{FullNode, NodeAdapter, RethFullAdapter};
 use reth_payload_builder::PayloadBuilderHandle;
+use reth_primitives_traits::{Block as _, SealedBlock};
 use reth_provider::{BlockHashReader, BlockNumReader};
 
 use crate::genesis::PrivateGenesisInfo;
@@ -122,5 +124,17 @@ impl PrivateNodeHandle {
     /// Returns the last known block number.
     pub fn last_block_number(&self) -> Result<u64, reth_provider::ProviderError> {
         self.provider.inner.last_block_number()
+    }
+
+    /// Constructs the sealed genesis block from the chain spec.
+    ///
+    /// The genesis block has an empty body (no transactions, no ommers, no
+    /// withdrawals) and the header comes from `ChainSpec::sealed_genesis_header`.
+    pub fn genesis_block(
+        &self,
+    ) -> SealedBlock<<EthPrimitives as reth_node_api::NodePrimitives>::Block> {
+        let sealed_header = self.chain_spec.sealed_genesis_header();
+        let body = Default::default();
+        SealedBlock::from_sealed_parts(sealed_header, body)
     }
 }
