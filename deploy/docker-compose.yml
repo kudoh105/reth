@@ -13,6 +13,7 @@ services:
     volumes:
       - v1-data:/data
       - ./keys/v1:/keys:ro
+      - ./genesis.json:/genesis.json:ro
     networks:
       private-net:
         ipv4_address: 172.20.0.11
@@ -21,12 +22,33 @@ services:
     environment:
       - RUST_LOG=info,commonware_p2p=debug,commonware_consensus=debug
     command: >
-      node --dev --datadir /data --http --http.addr 0.0.0.0 --http.port 8545 --http.api eth,net,web3,debug --http.corsdomain "*" --consensus.signing-key /keys/ed25519.hex --consensus.listen-address 0.0.0.0:8000 --consensus.datadir /data/consensus --consensus.fee-recipient 0x0000000000000000000000000000000000000001 --consensus.use-local-defaults --consensus.allow-private-ips --consensus.known-peers 0x1b040599fa8420315da0b6ba4fa079171e898c71cbcf7dc3d443a9859b83cfee@172.20.0.11:8000,0xf9bae1f8b538d0959878a79265c8aad301073919081e031f3b8458a9c1ea6f9b@172.20.0.12:8000,0x291b5fc290d027f7db1143874b4a55001ee148fcc831a1a321ebba3fccd40a38@172.20.0.13:8000,0xa5fda96a0acbccacc7eb6cbe8c7daab95d2fdb07ee7a76214d1ed3fa349a6984@172.20.0.14:8000
+      node 
+      --datadir /data 
+      --chain /genesis.json 
+      --http --http.addr 0.0.0.0 
+      --http.port 8545 
+      --http.api eth,net,web3,debug 
+      --http.corsdomain "*" 
+      --consensus.signing-key /keys/ed25519.hex 
+      --consensus.listen-address 0.0.0.0:8000 
+      --consensus.datadir /data/consensus 
+      --consensus.fee-recipient 0x0000000000000000000000000000000000000001 
+      --consensus.use-local-defaults 
+      --consensus.allow-private-ips 
+      --consensus.known-peers 0x1b040599fa8420315da0b6ba4fa079171e898c71cbcf7dc3d443a9859b83cfee@172.20.0.11:8000,0xf9bae1f8b538d0959878a79265c8aad301073919081e031f3b8458a9c1ea6f9b@172.20.0.12:8000,0x291b5fc290d027f7db1143874b4a55001ee148fcc831a1a321ebba3fccd40a38@172.20.0.13:8000,0xa5fda96a0acbccacc7eb6cbe8c7daab95d2fdb07ee7a76214d1ed3fa349a6984@172.20.0.14:8000
+      --txpool.pending-max-count 50000
+      --txpool.queued-max-count 50000
+      --txpool.basefee-max-count 50000
+      --txpool.max-account-slots 1000
+      --rpc.max-connections 2000
+      --rpc.max-request-size 50
+      --rpc.max-response-size 500
+      --builder.gaslimit 120000000
     deploy:
       resources:
         limits:
-          memory: 3500m
-          cpus: "1.5"
+          memory: 6000m
+          cpus: "2.5"
 
   v2:
     build:
@@ -37,18 +59,36 @@ services:
     volumes:
       - v2-data:/data
       - ./keys/v2:/keys:ro
+      - ./genesis.json:/genesis.json:ro
     networks:
       private-net:
         ipv4_address: 172.20.0.12
     environment:
       - RUST_LOG=info,commonware_p2p=debug,commonware_consensus=debug
     command: >
-      node --dev --datadir /data --consensus.signing-key /keys/ed25519.hex --consensus.listen-address 0.0.0.0:8000 --consensus.datadir /data/consensus --consensus.fee-recipient 0x0000000000000000000000000000000000000002 --consensus.use-local-defaults --consensus.allow-private-ips --consensus.known-peers 0x1b040599fa8420315da0b6ba4fa079171e898c71cbcf7dc3d443a9859b83cfee@172.20.0.11:8000,0xf9bae1f8b538d0959878a79265c8aad301073919081e031f3b8458a9c1ea6f9b@172.20.0.12:8000,0x291b5fc290d027f7db1143874b4a55001ee148fcc831a1a321ebba3fccd40a38@172.20.0.13:8000,0xa5fda96a0acbccacc7eb6cbe8c7daab95d2fdb07ee7a76214d1ed3fa349a6984@172.20.0.14:8000
+      node 
+      --datadir /data 
+      --chain /genesis.json 
+      --consensus.signing-key /keys/ed25519.hex 
+      --consensus.listen-address 0.0.0.0:8000 
+      --consensus.datadir /data/consensus 
+      --consensus.fee-recipient 0x0000000000000000000000000000000000000002 
+      --consensus.use-local-defaults 
+      --consensus.allow-private-ips 
+      --consensus.known-peers 0x1b040599fa8420315da0b6ba4fa079171e898c71cbcf7dc3d443a9859b83cfee@172.20.0.11:8000,0xf9bae1f8b538d0959878a79265c8aad301073919081e031f3b8458a9c1ea6f9b@172.20.0.12:8000,0x291b5fc290d027f7db1143874b4a55001ee148fcc831a1a321ebba3fccd40a38@172.20.0.13:8000,0xa5fda96a0acbccacc7eb6cbe8c7daab95d2fdb07ee7a76214d1ed3fa349a6984@172.20.0.14:8000
+      --txpool.pending-max-count 50000
+      --txpool.queued-max-count 50000
+      --txpool.basefee-max-count 50000
+      --txpool.max-account-slots 1000
+      --rpc.max-connections 2000
+      --rpc.max-request-size 50
+      --rpc.max-response-size 500
+      --builder.gaslimit 120000000
     deploy:
       resources:
         limits:
-          memory: 3500m
-          cpus: "1.5"
+          memory: 6000m
+          cpus: "2.5"
 
   v3:
     build:
@@ -59,18 +99,36 @@ services:
     volumes:
       - v3-data:/data
       - ./keys/v3:/keys:ro
+      - ./genesis.json:/genesis.json:ro
     networks:
       private-net:
         ipv4_address: 172.20.0.13
     environment:
       - RUST_LOG=info,commonware_p2p=debug,commonware_consensus=debug
     command: >
-      node --dev --datadir /data --consensus.signing-key /keys/ed25519.hex --consensus.listen-address 0.0.0.0:8000 --consensus.datadir /data/consensus --consensus.fee-recipient 0x0000000000000000000000000000000000000003 --consensus.use-local-defaults --consensus.allow-private-ips --consensus.known-peers 0x1b040599fa8420315da0b6ba4fa079171e898c71cbcf7dc3d443a9859b83cfee@172.20.0.11:8000,0xf9bae1f8b538d0959878a79265c8aad301073919081e031f3b8458a9c1ea6f9b@172.20.0.12:8000,0x291b5fc290d027f7db1143874b4a55001ee148fcc831a1a321ebba3fccd40a38@172.20.0.13:8000,0xa5fda96a0acbccacc7eb6cbe8c7daab95d2fdb07ee7a76214d1ed3fa349a6984@172.20.0.14:8000
+      node 
+      --datadir /data 
+      --chain /genesis.json 
+      --consensus.signing-key /keys/ed25519.hex 
+      --consensus.listen-address 0.0.0.0:8000 
+      --consensus.datadir /data/consensus 
+      --consensus.fee-recipient 0x0000000000000000000000000000000000000003 
+      --consensus.use-local-defaults 
+      --consensus.allow-private-ips 
+      --consensus.known-peers 0x1b040599fa8420315da0b6ba4fa079171e898c71cbcf7dc3d443a9859b83cfee@172.20.0.11:8000,0xf9bae1f8b538d0959878a79265c8aad301073919081e031f3b8458a9c1ea6f9b@172.20.0.12:8000,0x291b5fc290d027f7db1143874b4a55001ee148fcc831a1a321ebba3fccd40a38@172.20.0.13:8000,0xa5fda96a0acbccacc7eb6cbe8c7daab95d2fdb07ee7a76214d1ed3fa349a6984@172.20.0.14:8000
+      --txpool.pending-max-count 50000
+      --txpool.queued-max-count 50000
+      --txpool.basefee-max-count 50000
+      --txpool.max-account-slots 1000
+      --rpc.max-connections 2000
+      --rpc.max-request-size 50
+      --rpc.max-response-size 500
+      --builder.gaslimit 120000000
     deploy:
       resources:
         limits:
-          memory: 3500m
-          cpus: "1.5"
+          memory: 6000m
+          cpus: "2.5"
 
   v4:
     build:
@@ -81,18 +139,36 @@ services:
     volumes:
       - v4-data:/data
       - ./keys/v4:/keys:ro
+      - ./genesis.json:/genesis.json:ro
     networks:
       private-net:
         ipv4_address: 172.20.0.14
     environment:
       - RUST_LOG=info,commonware_p2p=debug,commonware_consensus=debug
     command: >
-      node --dev --datadir /data --consensus.signing-key /keys/ed25519.hex --consensus.listen-address 0.0.0.0:8000 --consensus.datadir /data/consensus --consensus.fee-recipient 0x0000000000000000000000000000000000000004 --consensus.use-local-defaults --consensus.allow-private-ips --consensus.known-peers 0x1b040599fa8420315da0b6ba4fa079171e898c71cbcf7dc3d443a9859b83cfee@172.20.0.11:8000,0xf9bae1f8b538d0959878a79265c8aad301073919081e031f3b8458a9c1ea6f9b@172.20.0.12:8000,0x291b5fc290d027f7db1143874b4a55001ee148fcc831a1a321ebba3fccd40a38@172.20.0.13:8000,0xa5fda96a0acbccacc7eb6cbe8c7daab95d2fdb07ee7a76214d1ed3fa349a6984@172.20.0.14:8000
+      node 
+      --datadir /data 
+      --chain /genesis.json 
+      --consensus.signing-key /keys/ed25519.hex 
+      --consensus.listen-address 0.0.0.0:8000 
+      --consensus.datadir /data/consensus 
+      --consensus.fee-recipient 0x0000000000000000000000000000000000000004 
+      --consensus.use-local-defaults 
+      --consensus.allow-private-ips 
+      --consensus.known-peers 0x1b040599fa8420315da0b6ba4fa079171e898c71cbcf7dc3d443a9859b83cfee@172.20.0.11:8000,0xf9bae1f8b538d0959878a79265c8aad301073919081e031f3b8458a9c1ea6f9b@172.20.0.12:8000,0x291b5fc290d027f7db1143874b4a55001ee148fcc831a1a321ebba3fccd40a38@172.20.0.13:8000,0xa5fda96a0acbccacc7eb6cbe8c7daab95d2fdb07ee7a76214d1ed3fa349a6984@172.20.0.14:8000
+      --txpool.pending-max-count 50000
+      --txpool.queued-max-count 50000
+      --txpool.basefee-max-count 50000
+      --txpool.max-account-slots 1000
+      --rpc.max-connections 2000
+      --rpc.max-request-size 50
+      --rpc.max-response-size 500
+      --builder.gaslimit 120000000
     deploy:
       resources:
         limits:
-          memory: 3500m
-          cpus: "1.5"
+          memory: 6000m
+          cpus: "2.5"
 
 networks:
   private-net:

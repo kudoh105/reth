@@ -189,7 +189,7 @@ pub async fn run_consensus_stack(
         share: signing_share,
         mailbox_size: args.mailbox_size,
         deque_size: args.deque_size,
-        time_to_propose: args.time_to_build_proposal.into_duration(),
+        time_to_propose: args.wait_for_proposal.into_duration(),
         time_to_collect_notarizations: args.wait_for_notarizations.into_duration(),
         time_to_retry_nullify_broadcast: args.wait_to_rebroadcast_nullify.into_duration(),
         time_for_peer_response: args.wait_for_peer_response.into_duration(),
