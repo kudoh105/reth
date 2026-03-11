@@ -6,24 +6,20 @@
 //! - `subblocks` removed entirely
 //! - `TempoFullNode` → `PrivateNodeHandle`
 
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
-use alloy_consensus::BlockHeader as _;
-use alloy_primitives::{B256, U256};
-use alloy_rpc_types_engine::PayloadStatusEnum;
+use alloy_primitives::B256;
 use commonware_consensus::{
-    marshal,
-    types::{Height, Round, View},
+    types::{Epoch, Epocher as _, Height, Round, View},
     Heightable as _,
 };
 use commonware_runtime::{
     spawn_cell, Clock, ContextCell, FutureExt, Handle, Metrics, Pacer, Spawner, Storage,
 };
-use commonware_utils::{channel::oneshot, SystemTimeExt};
+use commonware_utils::SystemTimeExt;
 use eyre::{OptionExt as _, WrapErr as _};
 use futures::{channel::mpsc, StreamExt as _};
 use rand_08::{CryptoRng, Rng};
-use reth_engine_primitives::ExecutionPayload as _;
 use reth_payload_primitives::{EngineApiMessageVersion, PayloadKind};
 use tracing::{info, info_span, warn};
 
@@ -122,11 +118,43 @@ where
         info_span!("application").in_scope(|| info!("mailbox closed, actor shutting down"));
     }
 
-    async fn handle_genesis(&self, _epoch: commonware_consensus::types::Epoch) -> Digest {
-        // Return the genesis block hash from the chain spec.
-        let genesis_hash =
-            self.state.execution_node.block_hash(0).ok().flatten().unwrap_or(B256::ZERO);
-        Digest(genesis_hash)
+    async fn handle_genesis(&mut self, epoch: Epoch) -> Digest {
+        if epoch.get() == 0 {
+            // Epoch 0 builds on the EL genesis block.
+            let genesis_hash =
+                self.state.execution_node.block_hash(0).ok().flatten().unwrap_or(B256::ZERO);
+            Digest(genesis_hash)
+        } else {
+            // Epoch N > 0 must build on the epoch-boundary block: the first block whose
+            // height belongs to epoch N. Epoch N's proposals extend the chain from this
+            // block, producing new EL blocks at heights (boundary_height + 1, ...).
+            //
+            // We read the block from the marshal's finalized-block archive rather than
+            // querying the EL provider directly.  The marshal guarantees that the block
+            // is stored *before* it sends the Update::Tip that triggers the epoch
+            // transition, so the block is always present by the time this function runs.
+            let boundary_height = self
+                .epoch_strategy
+                .first(epoch)
+                .map(|h| h.get())
+                .unwrap_or_else(|| epoch.get().saturating_mul(100));
+
+            let hash = self
+                .state
+                .marshal
+                .get_block(Height::new(boundary_height))
+                .await
+                .map(|b| b.block_hash())
+                .unwrap_or_else(|| {
+                    warn!(
+                        boundary_height,
+                        "epoch genesis: boundary block not in marshal; using B256::ZERO",
+                    );
+                    B256::ZERO
+                });
+
+            Digest(hash)
+        }
     }
 
     async fn handle_propose(
@@ -135,6 +163,8 @@ where
         round: Round,
     ) -> eyre::Result<Digest> {
         let (parent_view, parent_digest) = parent;
+
+        info!(%round, %parent_view, %parent_digest, "handle_propose: subscribing to parent");
 
         // Retrieve the parent block from the marshal.
         let parent = self
@@ -147,6 +177,8 @@ where
             .await
             .await
             .map_err(|_| eyre::eyre!("failed resolving parent block"))?;
+
+        info!(%round, "handle_propose: parent resolved, sending FCU");
 
         let parent_hash = parent.block_hash();
         let timestamp = self.context.current().epoch_millis() / 1000;
@@ -179,6 +211,15 @@ where
             .pace(&self.context, Duration::from_millis(20))
             .await
             .wrap_err("failed sending FCU with payload attributes")?;
+
+        info!(
+            %round,
+            head_block_hash = %parent_hash,
+            %timestamp,
+            payload_status = %fcu_response.payload_status,
+            payload_id = ?fcu_response.payload_id,
+            "FCU response",
+        );
 
         let payload_id =
             fcu_response.payload_id.ok_or_eyre("execution layer did not return payload ID")?;
@@ -221,8 +262,10 @@ where
             .await
             .wrap_err("failed sending new_payload for proposed block")?;
 
-        // Register block with marshal for P2P distribution.
-        self.state.marshal.verified(round, block).await;
+        // Broadcast block to all peers and register in marshal.
+        // Using `proposed()` (not `verified()`) so the block is distributed
+        // via P2P to other nodes before they try to verify it.
+        self.state.marshal.proposed(round, block).await;
 
         Ok(digest)
     }
@@ -230,9 +273,13 @@ where
     async fn handle_verify(&mut self, verify: Verify) -> eyre::Result<bool> {
         let Verify { parent, payload: block_digest, proposer: _, response, round } = verify;
 
-        let (parent_view, parent_digest) = parent;
+        // parent_view is not used; we subscribe with None to receive the block via P2P.
+        let (_parent_view, parent_digest) = parent;
 
-        // Retrieve the block from the marshal.
+        // Retrieve the proposed block from the marshal.
+        // Use `None` for round so the marshal waits for the block to arrive via P2P
+        // broadcast (from the proposer's `proposed()` call) rather than requesting a
+        // notarized copy from the network (which does not exist yet for a pending proposal).
         let block = self
             .state
             .marshal
@@ -241,7 +288,9 @@ where
             .await
             .map_err(|_| eyre::eyre!("failed resolving block for verification"))?;
 
-        // Retrieve the parent block.
+        // Retrieve the parent block. Genesis (height 0) is pre-loaded; other parents
+        // were distributed when their proposer called `proposed()`. Use `None` so the
+        // marshal returns the block from its local cache without requesting notarization.
         let parent = self
             .state
             .marshal
