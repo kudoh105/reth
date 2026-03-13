@@ -28,7 +28,7 @@ services:
       --chain /genesis.json
       --http --http.addr 0.0.0.0
       --http.port 8545
-      --http.api eth,net,web3,debug
+      --http.api eth,net,web3,debug,admin,txpool
       --http.corsdomain "*"
       --consensus.signing-key /keys/ed25519.hex
       --consensus.listen-address 0.0.0.0:8000
@@ -37,18 +37,18 @@ services:
       --consensus.use-local-defaults
       --consensus.allow-private-ips
       --consensus.known-peers 0x1b040599fa8420315da0b6ba4fa079171e898c71cbcf7dc3d443a9859b83cfee@172.20.0.11:8000,0xf9bae1f8b538d0959878a79265c8aad301073919081e031f3b8458a9c1ea6f9b@172.20.0.12:8000,0x291b5fc290d027f7db1143874b4a55001ee148fcc831a1a321ebba3fccd40a38@172.20.0.13:8000,0xa5fda96a0acbccacc7eb6cbe8c7daab95d2fdb07ee7a76214d1ed3fa349a6984@172.20.0.14:8000
-      --consensus.wait-for-proposal 2s
-      --consensus.time-to-build-proposal 1500ms
-      --trusted-peers enode://090fe6069b69483144a2551e0c8b36fb207feaf1049938693db35ab691043736b4c04665f5f11b865a1bf9de2166ac68c9ac845c0ba768303990838e3754e4ea@172.20.0.12:30303,enode://c75c6f9e325dd4c5b4df8f8c08efb08ac6075019c4f411af8eeb6d1880cb89e171eb3567111e03077ad27251ae541b4ec200a8a661b5d93c73fd0b2c42f9fce3@172.20.0.13:30303,enode://5f31c2500b0d28daadab7ac3b0d987c00da7c952c2f80d07e7400e10af7c12617fdd4b260c10eed0290d8aff1e7577b7bd5c758152b50c138657cf30d0932f1a@172.20.0.14:30303
-      --txpool.pending-max-count 50000
+      --trusted-peers enode://589f3dba0a879b2d609aaed13c9cb2454ed4857317a43c61ddc68c2f72a11aa838a6aacfecdbc290e91a13ec5c8db42fc80e77b201fd2507e439de802204e3ca@172.20.0.12:30303,enode://6ea41e7eb61028df93000ae06061d79d815bd7d3d90631f5158cd81403a81b0a613015982914edf1edab29bf13d0305f53b46501d5ab91ab3ec1454693976634@172.20.0.13:30303,enode://6dd7fc408eeddd1296436dc80337554bc5ec4d09602d8a882acc894b677a6f30dfd5f824cd71848e149bbd14072038f51afe9568088e2ebd0b049c7acde9ca73@172.20.0.14:30303
+      --txpool.pending-max-count 100000
       --txpool.queued-max-count 50000
-      --txpool.basefee-max-count 50000
-      --txpool.max-account-slots 1000
-      --rpc.max-connections 2000
-      --rpc.max-request-size 50
-      --rpc.max-response-size 500
-      --builder.gaslimit 120000000
-      --builder.interval 500ms
+      --txpool.basefee-max-count 10000
+      --txpool.max-account-slots 5000
+      --txpool.pending-max-size 134217728
+      --txpool.queued-max-size 134217728
+      --rpc.max-connections 5000
+      --rpc.max-request-size 100
+      --rpc.max-response-size 1000
+      --builder.gaslimit 200000000
+      --builder.interval 100ms
     deploy:
       resources:
         limits:
@@ -78,7 +78,7 @@ services:
       --chain /genesis.json
       --http --http.addr 0.0.0.0
       --http.port 8545
-      --http.api eth,net,web3,debug
+      --http.api eth,net,web3,debug,admin,txpool
       --http.corsdomain "*"
       --consensus.signing-key /keys/ed25519.hex
       --consensus.listen-address 0.0.0.0:8000
@@ -87,18 +87,18 @@ services:
       --consensus.use-local-defaults
       --consensus.allow-private-ips
       --consensus.known-peers 0x1b040599fa8420315da0b6ba4fa079171e898c71cbcf7dc3d443a9859b83cfee@172.20.0.11:8000,0xf9bae1f8b538d0959878a79265c8aad301073919081e031f3b8458a9c1ea6f9b@172.20.0.12:8000,0x291b5fc290d027f7db1143874b4a55001ee148fcc831a1a321ebba3fccd40a38@172.20.0.13:8000,0xa5fda96a0acbccacc7eb6cbe8c7daab95d2fdb07ee7a76214d1ed3fa349a6984@172.20.0.14:8000
-      --consensus.wait-for-proposal 2s
-      --consensus.time-to-build-proposal 1500ms
-      --trusted-peers enode://4fd005937b4eaa19b70ab7eaaa0de11b9d2260c1e4e3976751ee6cfa798f08fb3e5dc879068924e53e00186058c8c4f3edd549ef482bc44509432b3d8b0611ba@172.20.0.11:30303,enode://c75c6f9e325dd4c5b4df8f8c08efb08ac6075019c4f411af8eeb6d1880cb89e171eb3567111e03077ad27251ae541b4ec200a8a661b5d93c73fd0b2c42f9fce3@172.20.0.13:30303,enode://5f31c2500b0d28daadab7ac3b0d987c00da7c952c2f80d07e7400e10af7c12617fdd4b260c10eed0290d8aff1e7577b7bd5c758152b50c138657cf30d0932f1a@172.20.0.14:30303
-      --txpool.pending-max-count 50000
+      --trusted-peers enode://501fb4b09d71a458b4c43545adf6f100fae7fb4342d8fce92cec2c8526f4bc35b9206d7f411ce23f9e441001434a83b84ca551424eaf6caf1e3f127a0ec9cbaf@172.20.0.11:30303,enode://6ea41e7eb61028df93000ae06061d79d815bd7d3d90631f5158cd81403a81b0a613015982914edf1edab29bf13d0305f53b46501d5ab91ab3ec1454693976634@172.20.0.13:30303,enode://6dd7fc408eeddd1296436dc80337554bc5ec4d09602d8a882acc894b677a6f30dfd5f824cd71848e149bbd14072038f51afe9568088e2ebd0b049c7acde9ca73@172.20.0.14:30303
+      --txpool.pending-max-count 100000
       --txpool.queued-max-count 50000
-      --txpool.basefee-max-count 50000
-      --txpool.max-account-slots 1000
-      --rpc.max-connections 2000
-      --rpc.max-request-size 50
-      --rpc.max-response-size 500
-      --builder.gaslimit 120000000
-      --builder.interval 500ms
+      --txpool.basefee-max-count 10000
+      --txpool.max-account-slots 5000
+      --txpool.pending-max-size 134217728
+      --txpool.queued-max-size 134217728
+      --rpc.max-connections 5000
+      --rpc.max-request-size 100
+      --rpc.max-response-size 1000
+      --builder.gaslimit 200000000
+      --builder.interval 100ms
     deploy:
       resources:
         limits:
@@ -128,7 +128,7 @@ services:
       --chain /genesis.json
       --http --http.addr 0.0.0.0
       --http.port 8545
-      --http.api eth,net,web3,debug
+      --http.api eth,net,web3,debug,admin,txpool
       --http.corsdomain "*"
       --consensus.signing-key /keys/ed25519.hex
       --consensus.listen-address 0.0.0.0:8000
@@ -137,18 +137,18 @@ services:
       --consensus.use-local-defaults
       --consensus.allow-private-ips
       --consensus.known-peers 0x1b040599fa8420315da0b6ba4fa079171e898c71cbcf7dc3d443a9859b83cfee@172.20.0.11:8000,0xf9bae1f8b538d0959878a79265c8aad301073919081e031f3b8458a9c1ea6f9b@172.20.0.12:8000,0x291b5fc290d027f7db1143874b4a55001ee148fcc831a1a321ebba3fccd40a38@172.20.0.13:8000,0xa5fda96a0acbccacc7eb6cbe8c7daab95d2fdb07ee7a76214d1ed3fa349a6984@172.20.0.14:8000
-      --consensus.wait-for-proposal 2s
-      --consensus.time-to-build-proposal 1500ms
-      --trusted-peers enode://4fd005937b4eaa19b70ab7eaaa0de11b9d2260c1e4e3976751ee6cfa798f08fb3e5dc879068924e53e00186058c8c4f3edd549ef482bc44509432b3d8b0611ba@172.20.0.11:30303,enode://090fe6069b69483144a2551e0c8b36fb207feaf1049938693db35ab691043736b4c04665f5f11b865a1bf9de2166ac68c9ac845c0ba768303990838e3754e4ea@172.20.0.12:30303,enode://5f31c2500b0d28daadab7ac3b0d987c00da7c952c2f80d07e7400e10af7c12617fdd4b260c10eed0290d8aff1e7577b7bd5c758152b50c138657cf30d0932f1a@172.20.0.14:30303
-      --txpool.pending-max-count 50000
+      --trusted-peers enode://501fb4b09d71a458b4c43545adf6f100fae7fb4342d8fce92cec2c8526f4bc35b9206d7f411ce23f9e441001434a83b84ca551424eaf6caf1e3f127a0ec9cbaf@172.20.0.11:30303,enode://589f3dba0a879b2d609aaed13c9cb2454ed4857317a43c61ddc68c2f72a11aa838a6aacfecdbc290e91a13ec5c8db42fc80e77b201fd2507e439de802204e3ca@172.20.0.12:30303,enode://6dd7fc408eeddd1296436dc80337554bc5ec4d09602d8a882acc894b677a6f30dfd5f824cd71848e149bbd14072038f51afe9568088e2ebd0b049c7acde9ca73@172.20.0.14:30303
+      --txpool.pending-max-count 100000
       --txpool.queued-max-count 50000
-      --txpool.basefee-max-count 50000
-      --txpool.max-account-slots 1000
-      --rpc.max-connections 2000
-      --rpc.max-request-size 50
-      --rpc.max-response-size 500
-      --builder.gaslimit 120000000
-      --builder.interval 500ms
+      --txpool.basefee-max-count 10000
+      --txpool.max-account-slots 5000
+      --txpool.pending-max-size 134217728
+      --txpool.queued-max-size 134217728
+      --rpc.max-connections 5000
+      --rpc.max-request-size 100
+      --rpc.max-response-size 1000
+      --builder.gaslimit 200000000
+      --builder.interval 100ms
     deploy:
       resources:
         limits:
@@ -178,7 +178,7 @@ services:
       --chain /genesis.json
       --http --http.addr 0.0.0.0
       --http.port 8545
-      --http.api eth,net,web3,debug
+      --http.api eth,net,web3,debug,admin,txpool
       --http.corsdomain "*"
       --consensus.signing-key /keys/ed25519.hex
       --consensus.listen-address 0.0.0.0:8000
@@ -187,18 +187,18 @@ services:
       --consensus.use-local-defaults
       --consensus.allow-private-ips
       --consensus.known-peers 0x1b040599fa8420315da0b6ba4fa079171e898c71cbcf7dc3d443a9859b83cfee@172.20.0.11:8000,0xf9bae1f8b538d0959878a79265c8aad301073919081e031f3b8458a9c1ea6f9b@172.20.0.12:8000,0x291b5fc290d027f7db1143874b4a55001ee148fcc831a1a321ebba3fccd40a38@172.20.0.13:8000,0xa5fda96a0acbccacc7eb6cbe8c7daab95d2fdb07ee7a76214d1ed3fa349a6984@172.20.0.14:8000
-      --consensus.wait-for-proposal 2s
-      --consensus.time-to-build-proposal 1500ms
-      --trusted-peers enode://4fd005937b4eaa19b70ab7eaaa0de11b9d2260c1e4e3976751ee6cfa798f08fb3e5dc879068924e53e00186058c8c4f3edd549ef482bc44509432b3d8b0611ba@172.20.0.11:30303,enode://090fe6069b69483144a2551e0c8b36fb207feaf1049938693db35ab691043736b4c04665f5f11b865a1bf9de2166ac68c9ac845c0ba768303990838e3754e4ea@172.20.0.12:30303,enode://c75c6f9e325dd4c5b4df8f8c08efb08ac6075019c4f411af8eeb6d1880cb89e171eb3567111e03077ad27251ae541b4ec200a8a661b5d93c73fd0b2c42f9fce3@172.20.0.13:30303
-      --txpool.pending-max-count 50000
+      --trusted-peers enode://501fb4b09d71a458b4c43545adf6f100fae7fb4342d8fce92cec2c8526f4bc35b9206d7f411ce23f9e441001434a83b84ca551424eaf6caf1e3f127a0ec9cbaf@172.20.0.11:30303,enode://589f3dba0a879b2d609aaed13c9cb2454ed4857317a43c61ddc68c2f72a11aa838a6aacfecdbc290e91a13ec5c8db42fc80e77b201fd2507e439de802204e3ca@172.20.0.12:30303,enode://6ea41e7eb61028df93000ae06061d79d815bd7d3d90631f5158cd81403a81b0a613015982914edf1edab29bf13d0305f53b46501d5ab91ab3ec1454693976634@172.20.0.13:30303
+      --txpool.pending-max-count 100000
       --txpool.queued-max-count 50000
-      --txpool.basefee-max-count 50000
-      --txpool.max-account-slots 1000
-      --rpc.max-connections 2000
-      --rpc.max-request-size 50
-      --rpc.max-response-size 500
-      --builder.gaslimit 120000000
-      --builder.interval 500ms
+      --txpool.basefee-max-count 10000
+      --txpool.max-account-slots 5000
+      --txpool.pending-max-size 134217728
+      --txpool.queued-max-size 134217728
+      --rpc.max-connections 5000
+      --rpc.max-request-size 100
+      --rpc.max-response-size 1000
+      --builder.gaslimit 200000000
+      --builder.interval 100ms
     deploy:
       resources:
         limits:
