@@ -337,6 +337,7 @@ where
                 epoch_manager: epoch_manager_mailbox.clone(),
                 scheme_provider: scheme_provider.clone(),
                 peer_manager: peer_manager_mailbox.clone(),
+                last_finalized_height,
             },
         );
 

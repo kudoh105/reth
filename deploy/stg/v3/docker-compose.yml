@@ -1,0 +1,66 @@
+version: "3.8"
+
+# =================================================================
+# V3 노드 - 별도 서버 배포용
+#
+# 사전 준비:
+#   1. cp .env.example .env
+#   2. .env 파일에서 V1_IP ~ V4_IP 입력
+#   3. docker image load < private-node.tar.gz
+#   4. docker compose up -d
+# =================================================================
+
+services:
+  validator:
+    image: private-node:latest
+    container_name: private-v3
+    restart: unless-stopped
+    volumes:
+      - node-data:/data
+      - ./keys:/keys:ro
+      - ./genesis.json:/genesis.json:ro
+    ports:
+      - "8545:8545"       # JSON-RPC HTTP
+      - "8000:8000"       # Consensus P2P
+      - "30303:30303"     # ETH P2P TCP
+      - "30303:30303/udp" # ETH P2P UDP (discovery)
+    environment:
+      - RUST_LOG=info,commonware_p2p=debug,commonware_consensus=debug
+    command: >
+      node
+      --datadir /data
+      --chain /genesis.json
+      --http --http.addr 0.0.0.0
+      --http.port 8545
+      --http.api eth,net,web3,debug,admin,txpool
+      --http.corsdomain "*"
+      --consensus.signing-key /keys/ed25519.hex
+      --consensus.listen-address 0.0.0.0:8000
+      --consensus.datadir /data/consensus
+      --consensus.fee-recipient 0x0000000000000000000000000000000000000003
+      --consensus.use-local-defaults
+      --consensus.allow-private-ips
+      --consensus.known-peers ${V1_CONSENSUS_PUBKEY}@${V1_IP}:8000,${V2_CONSENSUS_PUBKEY}@${V2_IP}:8000,${V3_CONSENSUS_PUBKEY}@${V3_IP}:8000,${V4_CONSENSUS_PUBKEY}@${V4_IP}:8000
+      --consensus.wait-for-proposal 2000ms
+      --consensus.time-to-build-proposal 1000ms
+      --p2p.secret-key /keys/nodekey
+      --trusted-peers enode://${V1_ETH_NODEID}@${V1_IP}:30303,enode://${V2_ETH_NODEID}@${V2_IP}:30303,enode://${V4_ETH_NODEID}@${V4_IP}:30303
+      --txpool.pending-max-count 100000
+      --txpool.queued-max-count 50000
+      --txpool.basefee-max-count 10000
+      --txpool.max-account-slots 5000
+      --txpool.pending-max-size 134217728
+      --txpool.queued-max-size 134217728
+      --rpc.max-connections 8000
+      --rpc.max-request-size 100
+      --rpc.max-response-size 1000
+      --builder.gaslimit 220000000
+      --builder.interval 100ms
+    deploy:
+      resources:
+        limits:
+          memory: 8000m
+          cpus: "3"
+
+volumes:
+  node-data:

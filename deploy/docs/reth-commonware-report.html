@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reth + Commonware SimplexBFT - Technical Report</title>
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --accent: #f59e0b;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --border: #e2e8f0;
+    --success: #10b981;
+    --danger: #ef4444;
+    --code-bg: #1e293b;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+  }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 50%, #1e293b 100%);
+    color: white;
+    padding: 80px 40px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    opacity: 0.5;
+  }
+  .hero h1 {
+    font-size: 2.8em;
+    font-weight: 800;
+    margin-bottom: 12px;
+    position: relative;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero p {
+    font-size: 1.2em;
+    color: #94a3b8;
+    position: relative;
+  }
+  .hero-badge {
+    display: inline-block;
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: var(--accent);
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    font-weight: 600;
+    margin-bottom: 20px;
+    position: relative;
+  }
+
+  /* Container */
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* Section */
+  .section {
+    padding: 60px 0;
+  }
+  .section-title {
+    font-size: 1.8em;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-title .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: var(--primary);
+    color: white;
+    border-radius: 10px;
+    font-size: 0.7em;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .section-desc {
+    color: var(--text-muted);
+    font-size: 1.05em;
+    margin-bottom: 36px;
+    margin-left: 52px;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .card h3 {
+    font-size: 1.15em;
+    font-weight: 700;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Grid */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; }
+
+  @media (max-width: 768px) {
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  }
+
+  /* Stat Cards */
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .stat-card.highlight {
+    border-color: var(--primary);
+    background: linear-gradient(135deg, #eff6ff, #ffffff);
+  }
+  .stat-label {
+    font-size: 0.8em;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .stat-value {
+    font-size: 2.2em;
+    font-weight: 800;
+    color: var(--primary);
+    line-height: 1.2;
+  }
+  .stat-unit {
+    font-size: 0.4em;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-left: 2px;
+  }
+  .stat-sub {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* Architecture Diagram */
+  .arch-diagram {
+    background: #1e293b;
+    border-radius: 16px;
+    padding: 40px;
+    color: white;
+    overflow-x: auto;
+  }
+  .arch-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .arch-box {
+    border: 2px solid;
+    border-radius: 12px;
+    padding: 14px 20px;
+    text-align: center;
+    min-width: 140px;
+    font-size: 0.85em;
+    font-weight: 600;
+    position: relative;
+  }
+  .arch-box.el {
+    border-color: #60a5fa;
+    background: rgba(96, 165, 250, 0.1);
+    color: #93c5fd;
+  }
+  .arch-box.cl {
+    border-color: #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+    color: #fcd34d;
+  }
+  .arch-box.shared {
+    border-color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+    color: #6ee7b7;
+  }
+  .arch-box.storage {
+    border-color: #a78bfa;
+    background: rgba(167, 139, 250, 0.1);
+    color: #c4b5fd;
+  }
+  .arch-label {
+    font-size: 0.7em;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .arch-arrow {
+    color: #475569;
+    font-size: 1.2em;
+    display: flex;
+    justify-content: center;
+    padding: 4px 0;
+  }
+  .arch-connector {
+    width: 2px;
+    height: 20px;
+    background: #475569;
+    margin: 0 auto;
+  }
+  .arch-label-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.08);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.7em;
+    color: #94a3b8;
+    margin-top: 4px;
+  }
+
+  /* Flow Diagram */
+  .flow-container {
+    background: #1e293b;
+    border-radius: 16px;
+    padding: 40px;
+    color: white;
+  }
+  .flow-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+  }
+  .flow-step {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    position: relative;
+    padding-bottom: 24px;
+  }
+  .flow-step:last-child { padding-bottom: 0; }
+  .flow-step::before {
+    content: '';
+    position: absolute;
+    left: 19px;
+    top: 40px;
+    bottom: 0;
+    width: 2px;
+    background: #334155;
+  }
+  .flow-step:last-child::before { display: none; }
+  .flow-num {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 0.85em;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .flow-num.leader { background: #f59e0b; color: #1e293b; }
+  .flow-num.voter { background: #60a5fa; color: #1e293b; }
+  .flow-num.finalize { background: #10b981; color: #1e293b; }
+  .flow-num.epoch { background: #a78bfa; color: #1e293b; }
+  .flow-content h4 {
+    font-size: 1em;
+    margin-bottom: 4px;
+  }
+  .flow-content p {
+    font-size: 0.85em;
+    color: #94a3b8;
+    line-height: 1.6;
+  }
+  .flow-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.7em;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+  .flow-tag.time { background: rgba(245,158,11,0.15); color: #fcd34d; }
+  .flow-tag.actor { background: rgba(96,165,250,0.15); color: #93c5fd; }
+
+  /* Timeline */
+  .timeline-bar {
+    background: #1e293b;
+    border-radius: 16px;
+    padding: 32px;
+    color: white;
+    margin-top: 24px;
+  }
+  .tl-track {
+    position: relative;
+    height: 60px;
+    margin: 16px 0;
+  }
+  .tl-bg {
+    position: absolute;
+    top: 20px;
+    left: 0;
+    right: 0;
+    height: 20px;
+    background: #334155;
+    border-radius: 10px;
+  }
+  .tl-segment {
+    position: absolute;
+    top: 20px;
+    height: 20px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65em;
+    font-weight: 700;
+    color: white;
+    z-index: 1;
+  }
+  .tl-label {
+    position: absolute;
+    top: 46px;
+    font-size: 0.7em;
+    color: #94a3b8;
+    white-space: nowrap;
+  }
+  .tl-label-top {
+    position: absolute;
+    top: 0;
+    font-size: 0.7em;
+    color: #94a3b8;
+    white-space: nowrap;
+  }
+
+  /* Code block */
+  .code-block {
+    background: var(--code-bg);
+    border-radius: 12px;
+    padding: 24px;
+    color: #e2e8f0;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.82em;
+    line-height: 1.8;
+    overflow-x: auto;
+  }
+  .code-comment { color: #64748b; }
+  .code-key { color: #f59e0b; }
+  .code-val { color: #60a5fa; }
+  .code-str { color: #10b981; }
+
+  /* Table */
+  .styled-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .styled-table th {
+    background: #f1f5f9;
+    padding: 12px 16px;
+    font-size: 0.8em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    text-align: left;
+  }
+  .styled-table td {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 0.9em;
+  }
+  .styled-table tr:hover td { background: #f8fafc; }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 6px;
+    font-size: 0.8em;
+    font-weight: 600;
+  }
+  .badge-blue { background: #eff6ff; color: #2563eb; }
+  .badge-amber { background: #fffbeb; color: #d97706; }
+  .badge-green { background: #ecfdf5; color: #059669; }
+  .badge-purple { background: #f5f3ff; color: #7c3aed; }
+
+  /* Node Grid */
+  .node-card {
+    background: white;
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.2s;
+  }
+  .node-card:hover {
+    border-color: var(--primary);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+  }
+  .node-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 12px;
+    font-size: 1.4em;
+  }
+  .node-card:nth-child(1) .node-icon { background: #eff6ff; }
+  .node-card:nth-child(2) .node-icon { background: #ecfdf5; }
+  .node-card:nth-child(3) .node-icon { background: #fffbeb; }
+  .node-card:nth-child(4) .node-icon { background: #f5f3ff; }
+  .node-name {
+    font-weight: 700;
+    font-size: 1.1em;
+    margin-bottom: 4px;
+  }
+  .node-ip {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    font-family: monospace;
+  }
+  .node-ports {
+    margin-top: 8px;
+    font-size: 0.75em;
+    color: var(--text-muted);
+  }
+
+  /* Perf Bar */
+  .perf-bar-container {
+    margin: 8px 0;
+  }
+  .perf-bar-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85em;
+    margin-bottom: 4px;
+  }
+  .perf-bar-track {
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .perf-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 1s ease;
+  }
+
+  /* Divider */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 40px 0;
+  }
+
+  /* Footer */
+  .footer {
+    background: #1e293b;
+    color: #94a3b8;
+    text-align: center;
+    padding: 40px;
+    font-size: 0.85em;
+  }
+
+  /* Tooltip */
+  .info-tip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 0.85em;
+    color: #0369a1;
+    margin: 8px 0;
+  }
+
+  /* Animated pulse for live metrics */
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .live-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--success);
+    border-radius: 50%;
+    display: inline-block;
+    animation: pulse 2s infinite;
+    margin-right: 6px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============== HERO ============== -->
+<div class="hero">
+  <div class="hero-badge">Internal Technical Report</div>
+  <h1>Reth + <span>Commonware SimplexBFT</span></h1>
+  <p>Private Ethereum Chain &mdash; Architecture, Consensus Integration &amp; Performance Analysis</p>
+  <p style="margin-top: 16px; font-size: 0.85em; color: #64748b; position: relative;">2026.03.12 &nbsp;|&nbsp; Blockchain Team</p>
+</div>
+
+<div class="container">
+
+<!-- ============== TL;DR ============== -->
+<div class="section">
+  <div class="section-title"><span class="num">0</span> TL;DR</div>
+  <div class="section-desc">한눈에 보는 핵심 요약</div>
+
+  <div class="grid-3">
+    <div class="stat-card highlight">
+      <div class="stat-label">Max TPS</div>
+      <div class="stat-value">3,622<span class="stat-unit">tx/s</span></div>
+      <div class="stat-sub">Simple Transfer 기준</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Throughput</div>
+      <div class="stat-value">125<span class="stat-unit">Mgas/s</span></div>
+      <div class="stat-sub">EVM Gas Processing</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Block Time</div>
+      <div class="stat-value">1.4<span class="stat-unit">s</span></div>
+      <div class="stat-sub">Average, Instant Finality</div>
+    </div>
+  </div>
+
+  <div class="info-tip" style="margin-top: 20px;">
+    Beacon Chain(PoS)을 제거하고 Commonware SimplexBFT를 직접 통합하여 <strong>단일 바이너리</strong>로 실행되는 Private Ethereum Chain
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ============== 1. OVERVIEW ============== -->
+<div class="section">
+  <div class="section-title"><span class="num">1</span> Overview</div>
+  <div class="section-desc">Reth에 Commonware 합의 엔진을 통합한 이유와 구조</div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>Reth (Execution Layer)</h3>
+      <p>Rust로 작성된 고성능 Ethereum 실행 클라이언트. 트랜잭션 실행, 상태 관리, RPC 서비스 등 EVM 실행 레이어 전체를 담당합니다.</p>
+      <ul style="margin-top: 12px; padding-left: 20px; color: var(--text-muted); font-size: 0.9em; line-height: 2;">
+        <li>MDBX + Static Files 하이브리드 스토리지</li>
+        <li>Parallel EVM 실행 (rayon 기반)</li>
+        <li>Engine API (newPayload, forkchoiceUpdated)</li>
+        <li>JSON-RPC (eth, net, web3, debug, txpool)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Commonware SimplexBFT (Consensus Layer)</h3>
+      <p>BFT 기반 합의 프로토콜. Beacon Chain을 대체하여 블록 제안, 투표, Finalization을 수행합니다.</p>
+      <ul style="margin-top: 12px; padding-left: 20px; color: var(--text-muted); font-size: 0.9em; line-height: 2;">
+        <li>BLS12-381 Threshold Signature (2/3+ 서명)</li>
+        <li>VRF 기반 리더 선출</li>
+        <li>Epoch 단위 합의 관리 (100 blocks/epoch)</li>
+        <li>Instant Finality (투표 즉시 확정)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 24px;">
+    <h3>왜 Commonware인가?</h3>
+    <div class="grid-3" style="gap: 16px; margin-top: 12px;">
+      <div style="text-align: center; padding: 16px;">
+        <div style="font-size: 2em; margin-bottom: 8px;">1</div>
+        <div style="font-weight: 700; margin-bottom: 4px;">단일 바이너리</div>
+        <div style="font-size: 0.85em; color: var(--text-muted);">CL/EL 분리 없이 하나의 프로세스에서 동작. 운영 복잡도 대폭 감소</div>
+      </div>
+      <div style="text-align: center; padding: 16px;">
+        <div style="font-size: 2em; margin-bottom: 8px;">2</div>
+        <div style="font-weight: 700; margin-bottom: 4px;">Instant Finality</div>
+        <div style="font-size: 0.85em; color: var(--text-muted);">2/3+ 검증자 서명 수집 즉시 블록 확정. Reorg 없음</div>
+      </div>
+      <div style="text-align: center; padding: 16px;">
+        <div style="font-size: 2em; margin-bottom: 8px;">3</div>
+        <div style="font-weight: 700; margin-bottom: 4px;">빠른 블록 생성</div>
+        <div style="font-size: 0.85em; color: var(--text-muted);">12초 슬롯 없이 설정 가능한 블록 주기. 1~2초 블록 타임 달성</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ============== 2. ARCHITECTURE ============== -->
+<div class="section">
+  <div class="section-title"><span class="num">2</span> Architecture</div>
+  <div class="section-desc">In-process 통합 아키텍처 - EL과 CL이 MPSC 채널로 통신</div>
+
+  <div class="arch-diagram">
+    <div class="arch-label">SINGLE BINARY (reth node)</div>
+    <div style="border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-top: 8px;">
+
+      <!-- Top: Two Main Threads -->
+      <div style="display: grid; grid-template-columns: 1fr 40px 1fr; gap: 0; align-items: start;">
+
+        <!-- EL Side -->
+        <div>
+          <div class="arch-label" style="color: #93c5fd;">Execution Layer (Reth)</div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div class="arch-box el">JSON-RPC Server<br><span class="arch-label-badge">eth, net, web3, debug, txpool</span></div>
+            <div class="arch-box el">Transaction Pool<br><span class="arch-label-badge">pending / queued / basefee</span></div>
+            <div class="arch-box el">Payload Builder<br><span class="arch-label-badge">Block Assembly + EVM Exec</span></div>
+            <div class="arch-box el">Engine API Handler<br><span class="arch-label-badge">newPayload / FCU</span></div>
+            <div class="arch-box storage">MDBX + Static Files<br><span class="arch-label-badge">State DB + Block Archive</span></div>
+          </div>
+        </div>
+
+        <!-- Connector -->
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding-top: 80px;">
+          <div style="font-size: 0.6em; color: #64748b; writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 2px; margin-bottom: 8px;">MPSC</div>
+          <div style="width: 40px; height: 2px; background: #475569;"></div>
+          <div style="font-size: 1em; color: #475569; margin: 2px 0;">&#8596;</div>
+          <div style="width: 40px; height: 2px; background: #475569;"></div>
+          <div style="font-size: 0.6em; color: #64748b; writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 2px; margin-top: 8px;">Channel</div>
+        </div>
+
+        <!-- CL Side -->
+        <div>
+          <div class="arch-label" style="color: #fcd34d;">Consensus Layer (Commonware)</div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div class="arch-box cl">Application Actor<br><span class="arch-label-badge">Propose / Verify Blocks</span></div>
+            <div class="arch-box cl">Epoch Manager<br><span class="arch-label-badge">SimplexBFT Instance per Epoch</span></div>
+            <div class="arch-box cl">DKG Manager<br><span class="arch-label-badge">Threshold Key + Epoch Detection</span></div>
+            <div class="arch-box cl">Executor Actor<br><span class="arch-label-badge">FCU &rarr; Finalization</span></div>
+            <div class="arch-box cl">Marshal Archive<br><span class="arch-label-badge">Finalized Block Storage</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom: Shared -->
+      <div style="margin-top: 16px; border-top: 1px solid #334155; padding-top: 16px;">
+        <div class="arch-label" style="color: #6ee7b7;">NETWORK</div>
+        <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+          <div class="arch-box shared" style="min-width: 120px;">ETH P2P<br><span class="arch-label-badge">devp2p / tx propagation</span></div>
+          <div class="arch-box shared" style="min-width: 120px;">Consensus P2P<br><span class="arch-label-badge">commonware / votes</span></div>
+          <div class="arch-box shared" style="min-width: 120px;">Broadcast<br><span class="arch-label-badge">Block Distribution</span></div>
+          <div class="arch-box shared" style="min-width: 120px;">Peer Manager<br><span class="arch-label-badge">Validator Discovery</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ============== 3. CONSENSUS FLOW ============== -->
+<div class="section">
+  <div class="section-title"><span class="num">3</span> Consensus Flow</div>
+  <div class="section-desc">블록 제안부터 Finalization까지의 합의 프로세스</div>
+
+  <div class="flow-container">
+    <div class="flow-steps">
+
+      <div class="flow-step">
+        <div class="flow-num leader">1</div>
+        <div class="flow-content">
+          <h4 style="color: #fcd34d;">VRF Leader Election <span class="flow-tag actor">Epoch Manager</span></h4>
+          <p>매 View(블록)마다 BLS12-381 VRF을 사용하여 검증자 중 한 명을 <strong>리더(Proposer)</strong>로 선출합니다.<br>리더 선출은 결정론적이지만 예측 불가능하여 MEV 공격을 방지합니다.</p>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="flow-num leader">2</div>
+        <div class="flow-content">
+          <h4 style="color: #fcd34d;">Block Building <span class="flow-tag time">~1000ms sleep</span> <span class="flow-tag actor">Application Actor</span></h4>
+          <p>
+            <strong>a)</strong> 리더가 EL에 <code>forkchoiceUpdated</code> 전송 (PayloadAttributes 포함)<br>
+            <strong>b)</strong> <code>time-to-build-proposal</code> (1000ms) 동안 sleep → txpool에서 트랜잭션 수집 대기<br>
+            <strong>c)</strong> EL의 Payload Builder가 블록 조립 + EVM 실행 완료<br>
+            <strong>d)</strong> <code>newPayload</code>로 블록을 EL에 등록 후, digest를 네트워크에 브로드캐스트
+          </p>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="flow-num voter">3</div>
+        <div class="flow-content">
+          <h4 style="color: #93c5fd;">Voter Verification <span class="flow-tag time">wait-for-proposal 내</span> <span class="flow-tag actor">All Validators</span></h4>
+          <p>
+            모든 검증자가 proposal을 수신하고 <code>application.verify()</code> 실행:<br>
+            <strong>a)</strong> P2P broadcast로 블록 데이터 수신<br>
+            <strong>b)</strong> 블록 RLP 디코딩 + 부모 블록 확인<br>
+            <strong>c)</strong> EL에 <code>newPayload</code> 전달 → EVM 실행으로 유효성 검증<br>
+            <strong>d)</strong> 유효하면 BLS12-381 threshold share로 서명하여 vote 전송
+          </p>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="flow-num finalize">4</div>
+        <div class="flow-content">
+          <h4 style="color: #6ee7b7;">Notarization &amp; Finalization <span class="flow-tag actor">Marshal</span></h4>
+          <p>
+            <strong>2/3+ (N=4일 때 3개)</strong> 검증자 서명이 모이면 threshold certificate 생성.<br>
+            Marshal이 certificate를 검증하고 블록을 immutable archive에 저장.<br>
+            <strong>Instant Finality</strong> &mdash; 이 시점에서 블록은 되돌릴 수 없이 확정됩니다.
+          </p>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="flow-num finalize">5</div>
+        <div class="flow-content">
+          <h4 style="color: #6ee7b7;">EL State Update <span class="flow-tag actor">Executor</span></h4>
+          <p>
+            Executor가 EL에 <code>forkchoiceUpdated</code> 전송:<br>
+            <code>{ head_hash, safe_hash, finalized_hash }</code> 모두 새 블록으로 설정.<br>
+            EL이 상태를 영구 저장하고 다음 블록 빌드 준비.
+          </p>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="flow-num epoch">6</div>
+        <div class="flow-content">
+          <h4 style="color: #c4b5fd;">Epoch Transition <span class="flow-tag time">매 100 블록</span> <span class="flow-tag actor">DKG Manager</span></h4>
+          <p>
+            <code>block.number % epoch_length(100) == 0</code> 감지 시:<br>
+            현재 epoch의 SimplexBFT 인스턴스 종료 → 다음 epoch 인스턴스 시작.<br>
+            동일 검증자 셋 + 동일 threshold scheme 재등록 (Static DKG).
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Timing Diagram -->
+  <div class="timeline-bar" style="margin-top: 24px;">
+    <div style="font-weight: 700; margin-bottom: 16px;">Block Production Timeline (1 Block Cycle)</div>
+
+    <div class="tl-track" style="height: 80px;">
+      <div class="tl-bg"></div>
+
+      <!-- Leader sleep -->
+      <div class="tl-segment" style="left: 0%; width: 52%; background: linear-gradient(90deg, #f59e0b, #d97706); border-radius: 10px 0 0 10px;">
+        sleep (1000ms)
+      </div>
+      <!-- EVM execution -->
+      <div class="tl-segment" style="left: 52%; width: 24%; background: linear-gradient(90deg, #2563eb, #1d4ed8);">
+        EVM (~458ms)
+      </div>
+      <!-- P2P + Vote -->
+      <div class="tl-segment" style="left: 76%; width: 14%; background: linear-gradient(90deg, #10b981, #059669);">
+        P2P+Vote
+      </div>
+      <!-- Finalize -->
+      <div class="tl-segment" style="left: 90%; width: 10%; background: linear-gradient(90deg, #a78bfa, #7c3aed); border-radius: 0 10px 10px 0;">
+        Fin
+      </div>
+
+      <div class="tl-label" style="left: 0%;">0ms</div>
+      <div class="tl-label" style="left: 52%;">1000ms</div>
+      <div class="tl-label" style="left: 76%;">~1458ms</div>
+      <div class="tl-label" style="right: 0%; text-align: right;">~1700ms</div>
+
+      <div class="tl-label-top" style="left: 15%; color: #fcd34d;">Leader: Proposer</div>
+      <div class="tl-label-top" style="left: 55%; color: #93c5fd;">Payload Build</div>
+      <div class="tl-label-top" style="left: 82%; color: #6ee7b7;">Vote</div>
+    </div>
+
+    <div style="display: flex; gap: 16px; margin-top: 20px; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8em;">
+        <div style="width: 12px; height: 12px; background: #f59e0b; border-radius: 3px;"></div>
+        <span style="color: #94a3b8;">time-to-build-proposal (sleep)</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8em;">
+        <div style="width: 12px; height: 12px; background: #2563eb; border-radius: 3px;"></div>
+        <span style="color: #94a3b8;">EVM Execution (220M gas)</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8em;">
+        <div style="width: 12px; height: 12px; background: #10b981; border-radius: 3px;"></div>
+        <span style="color: #94a3b8;">Network Propagation + Voting</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8em;">
+        <div style="width: 12px; height: 12px; background: #a78bfa; border-radius: 3px;"></div>
+        <span style="color: #94a3b8;">Finalization</span>
+      </div>
+    </div>
+
+    <div class="info-tip" style="margin-top: 16px; background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); color: #fcd34d;">
+      <strong>Voter Safety Window</strong> = wait-for-proposal(2000ms) &minus; time-to-build-proposal(1000ms) &minus; network(~50ms) = <strong>950ms</strong> &gt; EVM 실행시간(458ms) &rarr; 2.07x 안전 마진
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ============== 4. NODE CONFIGURATION ============== -->
+<div class="section">
+  <div class="section-title"><span class="num">4</span> Node Configuration</div>
+  <div class="section-desc">4-node Private Network 구성 및 리소스 설정</div>
+
+  <!-- Node Cards -->
+  <div class="grid-4">
+    <div class="node-card">
+      <div class="node-icon">V1</div>
+      <div class="node-name">Validator 1</div>
+      <div class="node-ip">172.20.0.11</div>
+      <div class="node-ports">RPC :8545 &nbsp;|&nbsp; P2P :8000</div>
+    </div>
+    <div class="node-card">
+      <div class="node-icon">V2</div>
+      <div class="node-name">Validator 2</div>
+      <div class="node-ip">172.20.0.12</div>
+      <div class="node-ports">RPC :8546 &nbsp;|&nbsp; P2P :8000</div>
+    </div>
+    <div class="node-card">
+      <div class="node-icon">V3</div>
+      <div class="node-name">Validator 3</div>
+      <div class="node-ip">172.20.0.13</div>
+      <div class="node-ports">RPC :8547 &nbsp;|&nbsp; P2P :8000</div>
+    </div>
+    <div class="node-card">
+      <div class="node-icon">V4</div>
+      <div class="node-name">Validator 4</div>
+      <div class="node-ip">172.20.0.14</div>
+      <div class="node-ports">RPC :8548 &nbsp;|&nbsp; P2P :8000</div>
+    </div>
+  </div>
+
+  <!-- Config Table -->
+  <div class="card" style="margin-top: 24px;">
+    <h3>Core Parameters</h3>
+    <table class="styled-table">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Parameter</th>
+          <th>Value</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="badge badge-amber">Consensus</span></td>
+          <td><code>wait-for-proposal</code></td>
+          <td><strong>2000ms</strong></td>
+          <td>Voter가 proposal 대기하는 최대 시간 (timeout 시 nullify)</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-amber">Consensus</span></td>
+          <td><code>time-to-build-proposal</code></td>
+          <td><strong>1000ms</strong></td>
+          <td>리더가 FCU 후 블록 빌드를 위해 대기하는 시간</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-blue">Builder</span></td>
+          <td><code>builder.gaslimit</code></td>
+          <td><strong>220,000,000</strong></td>
+          <td>블록당 최대 가스 한도 (220M)</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-blue">Builder</span></td>
+          <td><code>builder.interval</code></td>
+          <td><strong>100ms</strong></td>
+          <td>Payload builder가 txpool 폴링하는 주기</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-green">Txpool</span></td>
+          <td><code>pending-max-count</code></td>
+          <td><strong>100,000</strong></td>
+          <td>Pending 풀 최대 트랜잭션 수</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-green">Txpool</span></td>
+          <td><code>pending/queued-max-size</code></td>
+          <td><strong>128 MB each</strong></td>
+          <td>각 풀의 최대 바이트 크기</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-purple">Resources</span></td>
+          <td><code>memory / cpus</code></td>
+          <td><strong>8 GB / 3 cores</strong></td>
+          <td>Docker container 리소스 제한 (per node)</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-purple">Resources</span></td>
+          <td><code>rpc.max-connections</code></td>
+          <td><strong>8,000</strong></td>
+          <td>RPC 동시 연결 상한</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Network Topology -->
+  <div class="card" style="margin-top: 24px;">
+    <h3>Network Topology</h3>
+    <div style="text-align: center; padding: 20px 0;">
+      <svg viewBox="0 0 500 280" style="max-width: 500px; width: 100%;">
+        <!-- Connections -->
+        <line x1="150" y1="80" x2="350" y2="80" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4"/>
+        <line x1="150" y1="80" x2="150" y2="220" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4"/>
+        <line x1="150" y1="80" x2="350" y2="220" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4"/>
+        <line x1="350" y1="80" x2="150" y2="220" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4"/>
+        <line x1="350" y1="80" x2="350" y2="220" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4"/>
+        <line x1="150" y1="220" x2="350" y2="220" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4"/>
+
+        <!-- Nodes -->
+        <circle cx="150" cy="80" r="28" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+        <text x="150" y="84" text-anchor="middle" font-size="12" font-weight="700" fill="#2563eb">V1</text>
+
+        <circle cx="350" cy="80" r="28" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
+        <text x="350" y="84" text-anchor="middle" font-size="12" font-weight="700" fill="#10b981">V2</text>
+
+        <circle cx="150" cy="220" r="28" fill="#fffbeb" stroke="#f59e0b" stroke-width="2"/>
+        <text x="150" y="224" text-anchor="middle" font-size="12" font-weight="700" fill="#f59e0b">V3</text>
+
+        <circle cx="350" cy="220" r="28" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+        <text x="350" y="224" text-anchor="middle" font-size="12" font-weight="700" fill="#7c3aed">V4</text>
+
+        <!-- Labels -->
+        <text x="250" y="60" text-anchor="middle" font-size="9" fill="#94a3b8">ETH P2P (devp2p:30303)</text>
+        <text x="250" y="155" text-anchor="middle" font-size="9" fill="#94a3b8">Consensus P2P (:8000)</text>
+        <text x="250" y="260" text-anchor="middle" font-size="9" fill="#94a3b8">Full Mesh &mdash; trusted-peers</text>
+      </svg>
+    </div>
+    <div style="text-align: center; font-size: 0.85em; color: var(--text-muted);">
+      4개 노드가 ETH P2P(devp2p)와 Consensus P2P(commonware) 두 개의 네트워크 레이어로 Full Mesh 연결
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ============== 5. KEY PARAMETERS ============== -->
+<div class="section">
+  <div class="section-title"><span class="num">5</span> Key Timing Relationship</div>
+  <div class="section-desc">성능과 안정성을 결정하는 핵심 타이밍 파라미터 관계</div>
+
+  <div class="card">
+    <div class="code-block">
+<span class="code-comment">// Block Cycle Time (블록 생성 주기)</span>
+<span class="code-key">block_time</span> = <span class="code-val">time_to_build_proposal</span> + <span class="code-val">evm_execution</span> + <span class="code-val">network_delay</span>
+           = <span class="code-str">1000ms</span> + <span class="code-str">~458ms</span> + <span class="code-str">~200ms</span>
+           = <span class="code-str">~1,658ms</span>
+
+<span class="code-comment">// Voter Safety Window (투표자가 블록을 검증할 수 있는 시간)</span>
+<span class="code-key">voter_window</span> = <span class="code-val">wait_for_proposal</span> - <span class="code-val">time_to_build_proposal</span> - <span class="code-val">network_overhead</span>
+             = <span class="code-str">2000ms</span> - <span class="code-str">1000ms</span> - <span class="code-str">~50ms</span>
+             = <span class="code-str">950ms</span>
+<span class="code-key">safety_margin</span> = voter_window / evm_execution = 950 / 458 = <span class="code-str">2.07x</span>
+
+<span class="code-comment">// TPS Calculation (초당 트랜잭션 처리량)</span>
+<span class="code-key">tps</span> = <span class="code-val">gas_limit</span> / <span class="code-val">gas_per_tx</span> / <span class="code-val">block_time</span>
+    = <span class="code-str">220,000,000</span> / <span class="code-str">21,000</span> / <span class="code-str">1.658</span>
+    = <span class="code-str">~6,316 TPS</span> <span class="code-comment">(theoretical, simple transfer)</span>
+
+<span class="code-comment">// EVM Throughput</span>
+<span class="code-key">evm_speed</span> = <span class="code-str">~480 Mgas/s</span> <span class="code-comment">(measured on 12-core host)</span>
+<span class="code-key">exec_time</span>(220M) = 220 / 480 * 1000 = <span class="code-str">~458ms</span>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top: 24px;">
+    <div class="card">
+      <h3>time-to-build-proposal 이 클수록</h3>
+      <ul style="padding-left: 20px; line-height: 2.2; font-size: 0.9em;">
+        <li style="color: var(--success);">txpool에서 더 많은 tx 수집 가능</li>
+        <li style="color: var(--success);">블록 gas utilization 증가</li>
+        <li style="color: var(--danger);">블록 주기 증가 (TPS 감소)</li>
+        <li style="color: var(--danger);">리더가 불필요하게 오래 대기</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>wait-for-proposal 이 클수록</h3>
+      <ul style="padding-left: 20px; line-height: 2.2; font-size: 0.9em;">
+        <li style="color: var(--success);">voter 검증 시간 여유 (안정성 향상)</li>
+        <li style="color: var(--success);">느린 노드도 참여 가능</li>
+        <li style="color: var(--danger);">nullify timeout 증가 (장애 복구 느림)</li>
+        <li style="color: var(--danger);">리더 불참 시 빈 블록 대기 시간 증가</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ============== 6. PERFORMANCE ============== -->
+<div class="section">
+  <div class="section-title"><span class="num">6</span> Performance Benchmark</div>
+  <div class="section-desc">부하 테스트 결과 - 최대 성능 측정</div>
+
+  <!-- Headline Stats -->
+  <div class="grid-4">
+    <div class="stat-card highlight">
+      <div class="stat-label">TPS</div>
+      <div class="stat-value">3,622<span class="stat-unit">tx/s</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Gas Throughput</div>
+      <div class="stat-value">125<span class="stat-unit">Mgas/s</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg Block Time</div>
+      <div class="stat-value">1.4<span class="stat-unit">s</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Gas Utilization</div>
+      <div class="stat-value">99.5<span class="stat-unit">%</span></div>
+    </div>
+  </div>
+
+  <!-- Detailed Results -->
+  <div class="grid-2" style="margin-top: 24px;">
+    <div class="card">
+      <h3>Block Statistics</h3>
+      <table class="styled-table">
+        <tbody>
+          <tr><td style="color: var(--text-muted);">Block Range</td><td style="font-weight: 600;">#8,762 ~ #8,854</td></tr>
+          <tr><td style="color: var(--text-muted);">Block Count</td><td style="font-weight: 600;">93 blocks</td></tr>
+          <tr><td style="color: var(--text-muted);">Elapsed</td><td style="font-weight: 600;">133 seconds</td></tr>
+          <tr><td style="color: var(--text-muted);">Avg Block Time</td><td style="font-weight: 600;">1.4 seconds</td></tr>
+          <tr><td style="color: var(--text-muted);">Gas Limit</td><td style="font-weight: 600;">180,000,000 (180M)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h3>Transaction Statistics</h3>
+      <table class="styled-table">
+        <tbody>
+          <tr><td style="color: var(--text-muted);">Total Transactions</td><td style="font-weight: 600;">481,832</td></tr>
+          <tr><td style="color: var(--text-muted);">Avg / Block</td><td style="font-weight: 600;">5,180.989</td></tr>
+          <tr><td style="color: var(--text-muted);">Min / Block</td><td style="font-weight: 600;">4,627</td></tr>
+          <tr><td style="color: var(--text-muted);">Max / Block</td><td style="font-weight: 600;">5,215</td></tr>
+          <tr><td style="color: var(--text-muted);">Stddev</td><td style="font-weight: 600;">96.675</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Gas Utilization -->
+  <div class="card" style="margin-top: 24px;">
+    <h3>Gas Utilization</h3>
+    <div class="grid-2">
+      <div>
+        <div class="perf-bar-container">
+          <div class="perf-bar-label">
+            <span>Average Utilization</span>
+            <span style="font-weight: 700; color: var(--primary);">99.46%</span>
+          </div>
+          <div class="perf-bar-track">
+            <div class="perf-bar-fill" style="width: 99.46%; background: linear-gradient(90deg, #2563eb, #1d4ed8);"></div>
+          </div>
+        </div>
+        <div class="perf-bar-container">
+          <div class="perf-bar-label">
+            <span>Min Utilization</span>
+            <span style="font-weight: 700; color: var(--accent);">88.85%</span>
+          </div>
+          <div class="perf-bar-track">
+            <div class="perf-bar-fill" style="width: 88.85%; background: linear-gradient(90deg, #f59e0b, #d97706);"></div>
+          </div>
+        </div>
+        <div class="perf-bar-container">
+          <div class="perf-bar-label">
+            <span>Max Utilization</span>
+            <span style="font-weight: 700; color: var(--success);">99.96%</span>
+          </div>
+          <div class="perf-bar-track">
+            <div class="perf-bar-fill" style="width: 99.96%; background: linear-gradient(90deg, #10b981, #059669);"></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <table class="styled-table">
+          <tbody>
+            <tr><td style="color: var(--text-muted);">Total Gas Used</td><td style="font-weight: 600;">16,650,963,712</td></tr>
+            <tr><td style="color: var(--text-muted);">Avg Gas / Block</td><td style="font-weight: 600;">179,042,620</td></tr>
+            <tr><td style="color: var(--text-muted);">Avg Gas / Tx</td><td style="font-weight: 600;">34,557</td></tr>
+            <tr><td style="color: var(--text-muted);">Gas Limit</td><td style="font-weight: 600;">180,000,000</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Benchmark Comparison -->
+  <div class="card" style="margin-top: 24px;">
+    <h3>Ethereum Mainnet vs Private Chain 비교</h3>
+    <table class="styled-table">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Ethereum Mainnet</th>
+          <th>Our Private Chain</th>
+          <th>Ratio</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Block Time</td>
+          <td>12 seconds</td>
+          <td><strong>1.4 seconds</strong></td>
+          <td><span class="badge badge-green">8.5x faster</span></td>
+        </tr>
+        <tr>
+          <td>Gas Limit</td>
+          <td>30,000,000</td>
+          <td><strong>180,000,000</strong></td>
+          <td><span class="badge badge-green">6x larger</span></td>
+        </tr>
+        <tr>
+          <td>TPS (simple tx)</td>
+          <td>~15-20</td>
+          <td><strong>~3,622</strong></td>
+          <td><span class="badge badge-green">~200x faster</span></td>
+        </tr>
+        <tr>
+          <td>Finality</td>
+          <td>~15 minutes (2 epochs)</td>
+          <td><strong>~1.4 seconds (instant)</strong></td>
+          <td><span class="badge badge-green">~640x faster</span></td>
+        </tr>
+        <tr>
+          <td>Consensus</td>
+          <td>Gasper (PoS)</td>
+          <td><strong>SimplexBFT (Threshold)</strong></td>
+          <td><span class="badge badge-blue">BFT</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ============== 7. DKG & EPOCH ============== -->
+<div class="section">
+  <div class="section-title"><span class="num">7</span> DKG &amp; Epoch Management</div>
+  <div class="section-desc">검증자 키 관리와 Epoch 기반 합의 생명주기</div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>Static Deterministic DKG</h3>
+      <p style="font-size: 0.9em; color: var(--text-muted); margin-bottom: 16px;">
+        별도의 DKG 세레모니 없이, Genesis 설정의 검증자 목록과 고정 Namespace 해시를 시드로 사용하여 모든 노드가 동일한 threshold scheme을 독립적으로 생성합니다.
+      </p>
+      <div class="code-block" style="font-size: 0.78em;">
+<span class="code-comment">// Namespace seed (모든 노드 동일)</span>
+<span class="code-key">seed</span> = hash(<span class="code-str">"PRIVATE_CHAIN"</span>)
+
+<span class="code-comment">// Threshold scheme 생성</span>
+<span class="code-key">scheme</span> = dkg::deal(seed, validators, <span class="code-val">N3f1</span>)
+<span class="code-comment">// N3f1 = ceil(2n/3) threshold</span>
+<span class="code-comment">// 4 validators → 3-of-4 필요</span>
+
+<span class="code-comment">// 각 노드가 자신의 BLS share 추출</span>
+<span class="code-key">my_share</span> = scheme.shares[my_index]
+      </div>
+    </div>
+    <div class="card">
+      <h3>Epoch Lifecycle</h3>
+      <p style="font-size: 0.9em; color: var(--text-muted); margin-bottom: 16px;">
+        100 블록 단위로 Epoch가 전환되며, 각 Epoch마다 독립적인 SimplexBFT 인스턴스가 실행됩니다.
+      </p>
+      <div style="margin-top: 12px;">
+        <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border);">
+          <span class="badge badge-purple">Epoch 0</span>
+          <span style="font-size: 0.85em;">Block #1 ~ #100</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border);">
+          <span class="badge badge-purple">Epoch 1</span>
+          <span style="font-size: 0.85em;">Block #101 ~ #200</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border);">
+          <span class="badge badge-purple">Epoch N</span>
+          <span style="font-size: 0.85em;">Block #(N*100+1) ~ #((N+1)*100)</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0;">
+          <span class="badge badge-amber">Transition</span>
+          <span style="font-size: 0.85em;">height % 100 == 0 → Exit + Enter</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ============== 8. CODEBASE STRUCTURE ============== -->
+<div class="section">
+  <div class="section-title"><span class="num">8</span> Codebase Structure</div>
+  <div class="section-desc">Commonware Consensus 통합 코드 구조 (~3,900 lines)</div>
+
+  <div class="card">
+    <div class="code-block" style="font-size: 0.78em; line-height: 2;">
+<span class="code-comment">crates/commonware-consensus/src/</span>
+<span class="code-key">├── lib.rs</span>                    <span class="code-comment"># run_consensus_stack() 진입점</span>
+<span class="code-key">├── args.rs</span>                   <span class="code-comment"># 50+ CLI arguments 정의</span>
+<span class="code-key">├── config.rs</span>                 <span class="code-comment"># P2P 채널 ID, Rate limit</span>
+<span class="code-key">├── genesis.rs</span>                <span class="code-comment"># Genesis에서 검증자 정보 파싱</span>
+<span class="code-key">├── key_io.rs</span>                 <span class="code-comment"># Ed25519/BLS 키 파일 I/O</span>
+<span class="code-key">├── node_handle.rs</span>            <span class="code-comment"># EL 인터페이스 (Engine API)</span>
+<span class="code-key">├── consensus/</span>
+<span class="code-val">│   ├── engine.rs</span>             <span class="code-comment"># 메인 오케스트레이터 (7개 Actor 초기화)</span>
+<span class="code-val">│   ├── application/</span>
+<span class="code-val">│   │   ├── actor.rs</span>          <span class="code-comment"># propose() / verify() 구현</span>
+<span class="code-val">│   │   └── ingress.rs</span>        <span class="code-comment"># Automaton trait 구현체</span>
+<span class="code-val">│   ├── block.rs</span>              <span class="code-comment"># SealedBlock wrapper</span>
+<span class="code-val">│   └── digest.rs</span>             <span class="code-comment"># B256 digest wrapper</span>
+<span class="code-key">├── dkg/manager/</span>
+<span class="code-str">│   └── mod.rs</span>                <span class="code-comment"># DKG 생성 + Epoch 경계 감지</span>
+<span class="code-key">├── epoch/</span>
+<span class="code-str">│   ├── manager/actor.rs</span>      <span class="code-comment"># Epoch 생명주기 관리</span>
+<span class="code-str">│   └── scheme_provider.rs</span>    <span class="code-comment"># Per-epoch BLS scheme 레지스트리</span>
+<span class="code-key">├── executor/</span>
+<span class="code-str">│   └── actor.rs</span>              <span class="code-comment"># FCU 전송 + Finalization 처리</span>
+<span class="code-key">└── peer_manager/</span>
+<span class="code-str">    └── actor.rs</span>              <span class="code-comment"># 검증자 피어 추적</span>
+    </div>
+  </div>
+</div>
+
+</div><!-- container -->
+
+<!-- Footer -->
+<div class="footer">
+  <p style="font-weight: 600; color: #e2e8f0; margin-bottom: 8px;">Reth + Commonware SimplexBFT &mdash; Private Ethereum Chain</p>
+  <p>Generated 2026-03-12 &nbsp;|&nbsp; Blockchain Team Internal Document</p>
+</div>
+
+</body>
+</html>

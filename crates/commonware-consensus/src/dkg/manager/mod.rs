@@ -20,7 +20,7 @@
 use commonware_codec::DecodeExt as _;
 use commonware_consensus::{
     marshal::Update,
-    types::{Epoch, Epocher as _, FixedEpocher},
+    types::{Epoch, Epocher as _, FixedEpocher, Height},
     Reporter,
 };
 use commonware_cryptography::{
@@ -73,6 +73,14 @@ pub(crate) struct Config {
 
     /// Peer manager mailbox for tracking validator peers.
     pub(crate) peer_manager: peer_manager::Mailbox,
+
+    /// The last finalized height known by the marshal at startup.
+    ///
+    /// Used to skip directly to the correct epoch on restart rather than
+    /// replaying epoch transitions from epoch 0, which would stall block
+    /// production because the execution layer has already finalized blocks
+    /// far beyond epoch 1's range.
+    pub(crate) last_finalized_height: Height,
 }
 
 /// Mailbox for the DKG manager actor.
@@ -209,27 +217,50 @@ where
             shares.get_value(&my_pubkey).cloned()
         };
 
-        let initial_epoch = Epoch::new(0);
+        // Determine the epoch to enter at startup.
+        //
+        // On a fresh chain, start at epoch 0.  On restart with an existing
+        // datadir, jump directly to the epoch that is currently active based
+        // on the last finalized height from the marshal's archive.  Without
+        // this fast-forward, a restarted node would replay epoch transitions
+        // from epoch 0 one-at-a-time via Tip notifications, but those
+        // notifications are not re-delivered during archive restore — so the
+        // DKG would stall at epoch 1 regardless of how many blocks the
+        // execution layer has already finalized (e.g. 800), causing every FCU
+        // to return payload_id=None and block production to freeze.
+        let starting_epoch = {
+            let last_h = self.config.last_finalized_height;
+            if last_h.get() > 0 {
+                self.config
+                    .epoch_strategy
+                    .containing(last_h)
+                    .map(|info| info.epoch())
+                    .unwrap_or(Epoch::new(0))
+            } else {
+                Epoch::new(0)
+            }
+        };
 
         info!(
-            epoch = %initial_epoch,
+            epoch = %starting_epoch,
+            last_finalized_height = %self.config.last_finalized_height,
             is_signer = my_share.is_some(),
             polynomial_threshold = polynomial.total().get(),
-            "registering BLS12-381 threshold scheme",
+            "registering BLS12-381 threshold scheme; entering starting epoch",
         );
 
-        // Tell the epoch manager to enter epoch 0 with the generated polynomial.
+        // Tell the epoch manager to enter the starting epoch.
         if let Err(e) = self.config.epoch_manager.enter(
-            initial_epoch,
+            starting_epoch,
             polynomial.clone(),
             my_share.clone(),
             participants.clone(),
         ) {
-            warn!(%e, "failed to instruct epoch manager to enter epoch 0");
+            warn!(%e, epoch = %starting_epoch, "failed to instruct epoch manager to enter starting epoch");
             return;
         }
 
-        info!("instructed epoch manager to enter epoch 0");
+        info!(epoch = %starting_epoch, "instructed epoch manager to enter starting epoch");
 
         // TODO: Inform the peer manager about the participants once DKG is fully integrated.
         // The peer_manager.track() requires (u64, Map<PublicKey, Address>) but we only have
@@ -238,7 +269,7 @@ where
         info!("DKG manager initialized (peer tracking deferred)");
 
         // Main loop: listen for finalized blocks and manage epoch transitions.
-        let mut current_epoch = initial_epoch;
+        let mut current_epoch = starting_epoch;
 
         while let Some(msg) = self.mailbox_rx.next().await {
             match msg {
