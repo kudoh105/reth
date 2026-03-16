@@ -119,20 +119,13 @@ pub async fn run_consensus_stack(
 
     // Register authorized peers from genesis config and/or --consensus.known-peers.
     // Without at least one peer set, commonware-p2p rejects all inbound connections.
+    //
+    // CLI peers are inserted first so that `from_iter_dedup` keeps them when
+    // genesis contains the same pubkey with a stale address (e.g. different
+    // Docker subnet).
     let mut peer_entries = Vec::new();
 
-    // Source 1: Genesis validators (from chainspec extra_fields).
-    let genesis_info = node.genesis_info();
-    if let Some(validators) = &genesis_info.validators {
-        for v in validators {
-            if let Some(entry) = parse_peer_entry(&v.pubkey, &v.address) {
-                peer_entries.push(entry);
-            }
-        }
-        info!(count = validators.len(), "parsed genesis validators");
-    }
-
-    // Source 2: CLI --consensus.known-peers (pubkey@ip:port format).
+    // Source 1 (higher priority): CLI --consensus.known-peers (pubkey@ip:port format).
     for raw in &args.known_peers {
         let Some((pubkey_str, addr_str)) = raw.split_once('@') else {
             warn!(peer = %raw, "skipping known-peer: expected pubkey@ip:port format");
@@ -146,13 +139,25 @@ pub async fn run_consensus_stack(
         info!(count = args.known_peers.len(), "parsed CLI known peers");
     }
 
+    // Source 2 (lower priority): Genesis validators (from chainspec extra_fields).
+    // If a pubkey was already added from CLI, the genesis entry is discarded
+    // by `from_iter_dedup`.
+    let genesis_info = node.genesis_info();
+    if let Some(validators) = &genesis_info.validators {
+        for v in validators {
+            if let Some(entry) = parse_peer_entry(&v.pubkey, &v.address) {
+                peer_entries.push(entry);
+            }
+        }
+        info!(count = validators.len(), "parsed genesis validators");
+    }
+
     if peer_entries.is_empty() {
         warn!("no authorized peers from genesis or CLI; P2P will reject all connections");
     } else {
-        let total = peer_entries.len();
         let peer_map = commonware_utils::ordered::Map::from_iter_dedup(peer_entries);
+        info!(num_peers = peer_map.len(), "registered initial authorized peer set");
         oracle.track(0, peer_map).await;
-        info!(num_peers = total, "registered initial authorized peer set");
     }
 
     let broadcaster_channel = network.register(

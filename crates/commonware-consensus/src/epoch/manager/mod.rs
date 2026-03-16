@@ -25,7 +25,9 @@ use commonware_consensus::{
     types::{FixedEpocher, ViewDelta},
 };
 use commonware_p2p::Blocker;
-use commonware_runtime::{buffer::paged::CacheRef, Clock, Metrics, Network, Spawner, Storage};
+use commonware_runtime::{
+    buffer::paged::CacheRef, BufferPooler, Clock, Metrics, Network, Spawner, Storage,
+};
 use rand_08::{CryptoRng, Rng};
 
 use crate::{consensus::block::Block, epoch::scheme_provider::SchemeProvider};
@@ -38,7 +40,8 @@ pub(crate) struct Config<TBlocker> {
     pub(crate) time_for_peer_response: Duration,
     pub(crate) time_to_propose: Duration,
     pub(crate) mailbox_size: usize,
-    pub(crate) marshal: marshal::Mailbox<Scheme<PublicKey, MinSig>, Block>,
+    pub(crate) marshal:
+        marshal::core::Mailbox<Scheme<PublicKey, MinSig>, marshal::standard::Standard<Block>>,
     pub(crate) scheme_provider: SchemeProvider,
     pub(crate) time_to_collect_notarizations: Duration,
     pub(crate) time_to_retry_nullify_broadcast: Duration,
@@ -53,8 +56,15 @@ pub(crate) fn init<TContext, TBlocker>(
 ) -> (Actor<TContext, TBlocker>, Mailbox)
 where
     TBlocker: Blocker<PublicKey = PublicKey>,
-    TContext:
-        Spawner + Metrics + Rng + CryptoRng + Clock + governor::clock::Clock + Storage + Network,
+    TContext: BufferPooler
+        + Spawner
+        + Metrics
+        + Rng
+        + CryptoRng
+        + Clock
+        + governor::clock::Clock
+        + Storage
+        + Network,
 {
     let (tx, rx) = futures::channel::mpsc::unbounded();
     let actor = Actor::new(config, context, rx);

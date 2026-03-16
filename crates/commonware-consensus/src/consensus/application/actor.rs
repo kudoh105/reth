@@ -170,7 +170,7 @@ where
         let parent = self
             .state
             .marshal
-            .subscribe(
+            .subscribe_by_digest(
                 Some(commonware_consensus::types::Round::new(round.epoch(), parent_view)),
                 parent_digest,
             )
@@ -181,7 +181,12 @@ where
         info!(%round, "handle_propose: parent resolved, sending FCU");
 
         let parent_hash = parent.block_hash();
-        let timestamp = self.context.current().epoch_millis() / 1000;
+        // Ethereum requires strictly increasing timestamps.  When consensus
+        // nullifies many views in rapid succession the wall-clock (seconds)
+        // may not have advanced past the parent block yet, causing the Engine
+        // API to reject the payload attributes with "invalid timestamp".
+        let now_secs = self.context.current().epoch_millis() / 1000;
+        let timestamp = now_secs.max(parent.timestamp().saturating_add(1));
 
         // Build standard Ethereum payload attributes.
         let payload_attributes = alloy_rpc_types_engine::PayloadAttributes {
@@ -283,7 +288,7 @@ where
         let block = self
             .state
             .marshal
-            .subscribe(None, block_digest)
+            .subscribe_by_digest(None, block_digest)
             .await
             .await
             .map_err(|_| eyre::eyre!("failed resolving block for verification"))?;
@@ -294,20 +299,32 @@ where
         let parent = self
             .state
             .marshal
-            .subscribe(None, parent_digest)
+            .subscribe_by_digest(None, parent_digest)
             .await
             .await
             .map_err(|_| eyre::eyre!("failed resolving parent block for verification"))?;
 
-        // Update canonical head to parent.
-        if let Err(error) = self.state.executor.canonicalize_head(parent.height(), parent.digest())
-        {
-            warn!(
-                %error,
-                parent.height = %parent.height(),
-                parent.digest = %parent.digest(),
-                "failed updating canonical head to parent",
-            );
+        // Update canonical head to parent and wait for the executor to acknowledge
+        // the FCU before sending new_payload, so the execution engine processes
+        // the fork-choice update before it validates the block.
+        match self.state.executor.canonicalize_head(parent.height(), parent.digest()) {
+            Err(error) => {
+                warn!(
+                    %error,
+                    parent.height = %parent.height(),
+                    parent.digest = %parent.digest(),
+                    "failed to send canonicalize_head request — executor may have exited",
+                );
+            }
+            Ok(rx) => {
+                if rx.await.is_err() {
+                    warn!(
+                        parent.height = %parent.height(),
+                        parent.digest = %parent.digest(),
+                        "canonicalize_head ack dropped — executor may have exited",
+                    );
+                }
+            }
         }
 
         // Send the block to the execution engine for validation.
@@ -336,8 +353,15 @@ where
             );
         }
 
-        // Send verification result
-        let _ = response.send(is_valid);
+        // Send verification result. If the channel is closed, simplex timed out
+        // waiting for the result — log so we can detect misconfigured timeouts.
+        if response.send(is_valid).is_err() {
+            warn!(
+                is_valid,
+                "verify response channel closed before result could be sent \
+                 — simplex engine may have timed out; consider increasing wait-for-proposal",
+            );
+        }
 
         // Notify marshal that verification is complete
         if is_valid {

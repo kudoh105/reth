@@ -179,18 +179,18 @@ where
         // All nodes use the same deterministic seed (derived from NAMESPACE),
         // so they all arrive at the same public polynomial. Each node picks
         // its own share based on its position in the ordered participant set.
+        //
+        // blake3 is used here rather than std::hash::DefaultHasher because:
+        // - DefaultHasher is not guaranteed to be stable across Rust versions, which could cause
+        //   nodes running different compiler versions to derive different seeds and therefore
+        //   different key material.
+        // - blake3 produces a full 32-byte output, ensuring all entropy bits are populated
+        //   (DefaultHasher only filled the first 16 bytes).
         let seed: [u8; 32] = {
-            use std::hash::{Hash, Hasher};
-            let mut hasher = std::collections::hash_map::DefaultHasher::new();
-            config::NAMESPACE.hash(&mut hasher);
-            let h = hasher.finish();
-            let mut s = [0u8; 32];
-            s[..8].copy_from_slice(&h.to_le_bytes());
-            // Use a secondary hash for more entropy
-            b"PRIVATE_CHAIN_DKG_SEED".hash(&mut hasher);
-            let h2 = hasher.finish();
-            s[8..16].copy_from_slice(&h2.to_le_bytes());
-            s
+            let mut hasher = blake3::Hasher::new();
+            hasher.update(config::NAMESPACE);
+            hasher.update(b"PRIVATE_CHAIN_DKG_SEED");
+            *hasher.finalize().as_bytes()
         };
         let mut rng = StdRng::from_seed(seed);
 

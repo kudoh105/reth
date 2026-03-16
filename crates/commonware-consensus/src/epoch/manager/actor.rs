@@ -27,7 +27,7 @@ use commonware_runtime::{
     spawn_cell, Clock, ContextCell, Handle, Metrics as _, Network, Spawner, Storage,
 };
 use commonware_utils::Acknowledgement as _;
-use eyre::{ensure, eyre};
+use eyre::{ensure, eyre, WrapErr as _};
 use futures::{channel::mpsc, StreamExt as _};
 use prometheus_client::metrics::{counter::Counter, gauge::Gauge};
 use rand_08::{CryptoRng, Rng};
@@ -51,7 +51,8 @@ pub(crate) struct Actor<TContext, TBlocker> {
 impl<TContext, TBlocker> Actor<TContext, TBlocker>
 where
     TBlocker: Blocker<PublicKey = PublicKey>,
-    TContext: Spawner
+    TContext: commonware_runtime::BufferPooler
+        + Spawner
         + commonware_runtime::Metrics
         + Rng
         + CryptoRng
@@ -229,8 +230,14 @@ where
         let is_signer = matches!(share, Some(..));
         let scheme = if let Some(share) = share {
             info!("we have a share for this epoch, participating as a signer");
-            Scheme::signer(crate::config::NAMESPACE, participants, public, share)
-                .expect("our private share must match our slice of the public key")
+            Scheme::signer(crate::config::NAMESPACE, participants, public, share).ok_or_else(
+                || {
+                    eyre!(
+                        "BLS share does not match participant list — \
+                     check that the signing share file matches the genesis validator set"
+                    )
+                },
+            )?
         } else {
             info!("we don't have a share for this epoch, participating as a verifier");
             Scheme::verifier(crate::config::NAMESPACE, participants, public)
@@ -258,8 +265,8 @@ where
                 page_cache: self.config.page_cache.clone(),
 
                 leader_timeout: self.config.time_to_propose,
-                notarization_timeout: self.config.time_to_collect_notarizations,
-                nullify_retry: self.config.time_to_retry_nullify_broadcast,
+                certification_timeout: self.config.time_to_collect_notarizations,
+                timeout_retry: self.config.time_to_retry_nullify_broadcast,
                 fetch_timeout: self.config.time_for_peer_response,
                 activity_timeout: self.config.views_to_track,
                 skip_timeout: self.config.views_until_leader_skip,
@@ -270,18 +277,27 @@ where
             },
         );
 
-        let vote = vote_mux.register(epoch.get()).await.unwrap();
-        let certificate = certificates_mux.register(epoch.get()).await.unwrap();
-        let resolver = resolver_mux.register(epoch.get()).await.unwrap();
+        let vote = vote_mux
+            .register(epoch.get())
+            .await
+            .wrap_err("failed to register vote mux channel — P2P network may have closed")?;
+        let certificate = certificates_mux
+            .register(epoch.get())
+            .await
+            .wrap_err("failed to register certificate mux channel — P2P network may have closed")?;
+        let resolver = resolver_mux
+            .register(epoch.get())
+            .await
+            .wrap_err("failed to register resolver mux channel — P2P network may have closed")?;
 
-        assert!(
+        ensure!(
             self.active_epochs.insert(epoch, engine.start(vote, certificate, resolver)).is_none(),
-            "there must be no other active engine running: this was ensured at \
-            the beginning of this method",
+            "there must be no other active engine running for epoch {epoch}",
         );
 
         info!("started consensus engine backing the epoch");
 
+        self.metrics.latest_epoch.set(epoch.get() as i64);
         self.metrics.latest_participants.set(n_participants as i64);
         self.metrics.active_epochs.inc();
         self.metrics.how_often_signer.inc_by(is_signer as u64);
@@ -294,6 +310,7 @@ where
     fn exit(&mut self, cause: Span, Exit { epoch }: Exit) {
         if let Some(engine) = self.active_epochs.remove(&epoch) {
             engine.abort();
+            self.metrics.active_epochs.dec();
             info!("stopped engine backing epoch");
         } else {
             warn!(

@@ -51,6 +51,7 @@ alloy-rlp.workspace = true
 alloy-genesis.workspace = true
 
 # External
+blake3 = { version = "1", default-features = false }
 bytes.workspace = true
 clap.workspace = true
 const-hex.workspace = true
