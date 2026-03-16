@@ -40,7 +40,8 @@ pub(crate) struct Config<TBlocker> {
     pub(crate) time_for_peer_response: Duration,
     pub(crate) time_to_propose: Duration,
     pub(crate) mailbox_size: usize,
-    pub(crate) marshal: marshal::core::Mailbox<Scheme<PublicKey, MinSig>, marshal::standard::Standard<Block>>,
+    pub(crate) marshal:
+        marshal::core::Mailbox<Scheme<PublicKey, MinSig>, marshal::standard::Standard<Block>>,
     pub(crate) scheme_provider: SchemeProvider,
     pub(crate) time_to_collect_notarizations: Duration,
     pub(crate) time_to_retry_nullify_broadcast: Duration,

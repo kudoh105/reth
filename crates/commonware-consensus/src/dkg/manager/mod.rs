@@ -181,11 +181,11 @@ where
         // its own share based on its position in the ordered participant set.
         //
         // blake3 is used here rather than std::hash::DefaultHasher because:
-        // - DefaultHasher is not guaranteed to be stable across Rust versions,
-        //   which could cause nodes running different compiler versions to derive
-        //   different seeds and therefore different key material.
-        // - blake3 produces a full 32-byte output, ensuring all entropy bits are
-        //   populated (DefaultHasher only filled the first 16 bytes).
+        // - DefaultHasher is not guaranteed to be stable across Rust versions, which could cause
+        //   nodes running different compiler versions to derive different seeds and therefore
+        //   different key material.
+        // - blake3 produces a full 32-byte output, ensuring all entropy bits are populated
+        //   (DefaultHasher only filled the first 16 bytes).
         let seed: [u8; 32] = {
             let mut hasher = blake3::Hasher::new();
             hasher.update(config::NAMESPACE);

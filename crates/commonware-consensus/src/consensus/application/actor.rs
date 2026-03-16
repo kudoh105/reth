@@ -181,7 +181,12 @@ where
         info!(%round, "handle_propose: parent resolved, sending FCU");
 
         let parent_hash = parent.block_hash();
-        let timestamp = self.context.current().epoch_millis() / 1000;
+        // Ethereum requires strictly increasing timestamps.  When consensus
+        // nullifies many views in rapid succession the wall-clock (seconds)
+        // may not have advanced past the parent block yet, causing the Engine
+        // API to reject the payload attributes with "invalid timestamp".
+        let now_secs = self.context.current().epoch_millis() / 1000;
+        let timestamp = now_secs.max(parent.timestamp().saturating_add(1));
 
         // Build standard Ethereum payload attributes.
         let payload_attributes = alloy_rpc_types_engine::PayloadAttributes {

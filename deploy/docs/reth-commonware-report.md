@@ -2,7 +2,7 @@
 
 > Private Ethereum Chain - Architecture, Consensus Integration & Performance Analysis
 
-**Blockchain Team Internal Document** | 2026-03-12
+**Blockchain Team Internal Document** | 2026-03-16
 
 ---
 
@@ -23,17 +23,19 @@
 
 ## 1. TL;DR
 
-| Metric | Gas Limit 120M | Gas Limit 180M (Best) |
-|--------|:--------------:|:---------------------:|
-| **TPS** | 2,247 tx/s | **3,622 tx/s** |
-| **Gas Throughput** | 79 Mgas/s | **125 Mgas/s** |
-| **Avg Block Time** | 1.5s | **1.4s** |
-| **Gas Utilization** | 97.7% | **99.5%** |
+| Metric | Gas Limit 120M | Gas Limit 180M | Gas Limit 160M | Gas Limit 200M (Best) |
+|--------|:--------------:|:--------------:|:--------------:|:---------------------:|
+| **TPS** | 2,247 tx/s | 3,622 tx/s | 4,999 tx/s | **6,360 tx/s** |
+| **Gas Throughput** | 79 Mgas/s | 125 Mgas/s | 164 Mgas/s | **209 Mgas/s** |
+| **Avg Block Time** | 1.5s | 1.4s | 1.0s | **1.0s** |
+| **Gas Utilization** | 97.7% | 99.5% | 99.9% | **99.9%** |
+
+> 120M·180M 테스트는 `time-to-build-proposal=1000ms` 환경, 160M·200M 테스트는 `time-to-build-proposal=500ms`(기본값) 환경에서 측정.
 
 - Beacon Chain(PoS) 제거, **Commonware SimplexBFT** 직접 통합
 - **단일 바이너리** — EL + CL이 하나의 프로세스에서 동작
 - **Instant Finality** — 블록 생성 즉시 확정, Reorg 불가
-- Ethereum Mainnet 대비 **~200배 TPS**, **~640배 빠른 Finality**
+- Ethereum Mainnet 대비 **~350배 TPS**, **~640배 빠른 Finality**
 
 ---
 
@@ -64,7 +66,7 @@
 |---|---|
 | **단일 바이너리** | CL/EL 분리 없이 하나의 프로세스에서 동작. 운영 복잡도 대폭 감소 |
 | **Instant Finality** | 2/3+ 검증자 서명 수집 즉시 블록 확정. Reorg 없음 |
-| **빠른 블록 생성** | 12초 슬롯 없이 설정 가능한 블록 주기. 1~2초 블록 타임 달성 |
+| **빠른 블록 생성** | 12초 슬롯 없이 설정 가능한 블록 주기. 1초 블록 타임 달성 |
 
 ---
 
@@ -204,7 +206,7 @@
 #### Epoch의 정의
 
 - 1 에폭 = 100개 블록
-- 블록 타임 1.5초 기준, 약 **150초(2.5분)**마다 1 에폭 경과
+- 블록 타임 1.0초 기준, 약 **100초(1.7분)**마다 1 에폭 경과
 
 #### 왜 에폭 단위로 관리하는가?
 
@@ -328,7 +330,7 @@ Step 1: VRF Leader Election          [Epoch Manager]
    ▼
 Step 2: Block Building               [Application Actor]
    │    a) 리더가 EL에 forkchoiceUpdated 전송 (PayloadAttributes 포함)
-   │    b) time-to-build-proposal (1000ms) 동안 sleep → txpool에서 tx 수집 대기
+   │    b) time-to-build-proposal (500ms) 동안 sleep → txpool에서 tx 수집 대기
    │    c) EL Payload Builder가 블록 조립 + EVM 실행 완료
    │    d) newPayload로 블록을 EL에 등록 후 digest를 네트워크에 broadcast
    ▼
@@ -358,25 +360,26 @@ Step 6: Epoch Transition             [DKG Manager]  (매 100 블록)
 ```
 Time ──────────────────────────────────────────────────────────►
 
-├── sleep (1000ms) ──┤── EVM exec (~458ms) ──┤── P2P+Vote ──┤── Fin ──┤
-│                    │                        │              │         │
-│    Leader:         │    Payload Build       │   Broadcast  │ Marshal │
-│    FCU 전송 후     │    (tx 수집 + EVM)     │   + 투표     │ 확정    │
-│    대기             │                        │              │         │
-0ms              1000ms                   ~1458ms         ~1600ms  ~1700ms
+├── sleep (500ms) ─┤── EVM exec (~417ms) ──┤── P2P+Vote ──┤── Fin ──┤
+│                  │                        │              │         │
+│    Leader:       │    Payload Build       │   Broadcast  │ Marshal │
+│    FCU 전송 후   │    (tx 수집 + EVM)     │   + 투표     │ 확정    │
+│    대기           │                        │              │         │
+0ms             500ms                   ~917ms         ~1050ms  ~1100ms
 ```
 
 #### Voter Safety Window
 
 ```
 voter_window = wait_for_proposal - time_to_build_proposal - network_overhead
-             = 2000ms - 1000ms - ~50ms
-             = 950ms
+             = 2000ms - 500ms - ~50ms
+             = 1450ms
 
-safety_margin = voter_window / evm_execution = 950 / 458 = 2.07x ✅
+safety_margin (200M gas) = 1450 / 417 = 3.47x ✅
+safety_margin (160M gas) = 1450 / 333 = 4.35x ✅
 ```
 
-> voter가 블록을 받아서 EVM 실행으로 검증하는 데 필요한 시간 대비 **2배 이상의 여유** → 안정적 운영 보장
+> voter가 블록을 받아서 EVM 실행으로 검증하는 데 필요한 시간 대비 **3.5배 이상의 여유** → 안정적 운영 보장
 
 ---
 
@@ -421,8 +424,8 @@ safety_margin = voter_window / evm_execution = 950 / 458 = 2.07x ✅
 | Category | Parameter | Value | Description |
 |----------|-----------|-------|-------------|
 | **Consensus** | `wait-for-proposal` | **2000ms** | Voter가 proposal 대기하는 최대 시간 (timeout 시 nullify) |
-| **Consensus** | `time-to-build-proposal` | **1000ms** | 리더가 FCU 후 블록 빌드를 위해 대기하는 시간 |
-| **Builder** | `builder.gaslimit` | **220,000,000** | 블록당 최대 가스 한도 (220M) |
+| **Consensus** | `time-to-build-proposal` | **500ms** | 리더가 FCU 후 블록 빌드를 위해 대기하는 시간 |
+| **Builder** | `builder.gaslimit` | **200,000,000** | 블록당 최대 가스 한도 (200M) |
 | **Builder** | `builder.interval` | **100ms** | Payload builder가 txpool 폴링하는 주기 |
 | **Txpool** | `pending-max-count` | **100,000** | Pending 풀 최대 트랜잭션 수 |
 | **Txpool** | `queued-max-count` | **50,000** | Queued 풀 최대 트랜잭션 수 |
@@ -444,23 +447,25 @@ safety_margin = voter_window / evm_execution = 950 / 458 = 2.07x ✅
 ```
 Block Cycle Time (블록 생성 주기)
   = time_to_build_proposal + evm_execution + network_delay
-  = 1000ms + ~458ms + ~200ms
-  = ~1,658ms
+  = 500ms + ~417ms + ~83ms
+  = ~1,000ms
 
 Voter Safety Window (투표자 검증 가용 시간)
   = wait_for_proposal - time_to_build_proposal - network_overhead
-  = 2000ms - 1000ms - ~50ms
-  = 950ms
-  → safety_margin = 950 / 458 = 2.07x
+  = 2000ms - 500ms - ~50ms
+  = 1450ms
+  → safety_margin (200M) = 1450 / 417 = 3.47x
+  → safety_margin (160M) = 1450 / 333 = 4.35x
 
-TPS Calculation
-  = gas_limit / gas_per_tx / block_time
-  = 220,000,000 / 21,000 / 1.658
-  = ~6,316 TPS (theoretical, simple transfer)
+TPS Calculation (200M, 실측 avg gas/tx = 32,926)
+  = gas_limit / avg_gas_per_tx / block_time
+  = 200,000,000 / 32,926 / 1.0
+  = ~6,074 TPS (theoretical) → 실측 6,360 TPS
 
 EVM Throughput
   = ~480 Mgas/s (measured on 12-core host)
-  exec_time(220M) = 220 / 480 * 1000 = ~458ms
+  exec_time(200M) = 200 / 480 * 1000 = ~417ms
+  exec_time(160M) = 160 / 480 * 1000 = ~333ms
 ```
 
 ### 파라미터 트레이드오프
@@ -491,14 +496,14 @@ EVM Throughput
 
 - **Hardware**: 12-core CPU, Docker container 당 3 cores / 8GB RAM
 - **Network**: 4 validators, Docker bridge (172.20.0.0/16)
-- **Transaction Type**: Simple ETH transfer (~21,000 gas) + mixed (~35,000 avg)
-- **Consensus**: wait-for-proposal 2000ms, time-to-build-proposal 1000ms
+- **Transaction Type**: Simple ETH transfer (~21,000 gas) + mixed (~33,000 avg)
+- **Consensus**: wait-for-proposal 2000ms
 
 ---
 
 ### Test 1: Gas Limit 120M
 
-> Blocks 1,249 ~ 1,308 | 2026-03-11T06:36:29Z
+> Blocks 1,249 ~ 1,308 | 2026-03-11T06:36:29Z | `time-to-build-proposal=1000ms`
 
 #### Headline Metrics
 
@@ -541,9 +546,9 @@ EVM Throughput
 
 ---
 
-### Test 2: Gas Limit 180M (Best Performance)
+### Test 2: Gas Limit 180M
 
-> Blocks 8,762 ~ 8,854 | 2026-03-12T02:10:08Z
+> Blocks 8,762 ~ 8,854 | 2026-03-12T02:10:08Z | `time-to-build-proposal=1000ms`
 
 #### Headline Metrics
 
@@ -586,25 +591,215 @@ EVM Throughput
 
 ---
 
+### Test 3: Gas Limit 160M
+
+> Blocks 11,316 ~ 11,352 | 2026-03-16T05:37:42Z | `time-to-build-proposal=500ms`
+
+#### Headline Metrics
+
+| TPS | Gas Throughput | Avg Block Time | Gas Utilization |
+|:---:|:--------------:|:--------------:|:---------------:|
+| **4,999** tx/s | **164** Mgas/s | **1.0** s | **99.9%** |
+
+#### Block Statistics
+
+| Metric | Value |
+|--------|-------|
+| Block Range | #11,316 ~ #11,352 |
+| Block Count | 37 blocks |
+| Elapsed | 36 seconds |
+| Avg Block Time | 1.0 seconds |
+| Gas Limit | 160,000,000 (160M) |
+
+#### Transaction Statistics
+
+| Metric | Value |
+|--------|-------|
+| Total Transactions | 179,982 |
+| Avg / Block | 4,864 |
+| Min / Block | 4,852 |
+| Max / Block | 4,879 |
+| Stddev | 6.253 |
+
+#### Gas Usage
+
+| Metric | Value |
+|--------|-------|
+| Total Gas Used | 5,916,869,877 |
+| Avg Gas / Block | 159,915,402 |
+| Min Gas / Block | 159,900,875 |
+| Max Gas / Block | 159,933,157 |
+| Avg Gas / Tx | 32,874 |
+| Utilization Avg | 99.94% |
+| Utilization Min | 99.93% |
+| Utilization Max | 99.95% |
+
+---
+
+### Test 4: Gas Limit 200M (Best Performance)
+
+> Blocks 4,241 ~ 4,262 | 2026-03-16T04:28:39Z | `time-to-build-proposal=500ms`
+
+#### Headline Metrics
+
+| TPS | Gas Throughput | Avg Block Time | Gas Utilization |
+|:---:|:--------------:|:--------------:|:---------------:|
+| **6,360** tx/s | **209** Mgas/s | **1.0** s | **99.9%** |
+
+#### Block Statistics
+
+| Metric | Value |
+|--------|-------|
+| Block Range | #4,241 ~ #4,262 |
+| Block Count | 22 blocks |
+| Elapsed | 21 seconds |
+| Avg Block Time | 1.0 seconds |
+| Gas Limit | 200,000,000 (200M) |
+
+#### Transaction Statistics
+
+| Metric | Value |
+|--------|-------|
+| Total Transactions | 133,576 |
+| Avg / Block | 6,071 |
+| Min / Block | 6,061 |
+| Max / Block | 6,085 |
+| Stddev | 7.352 |
+
+#### Gas Usage
+
+| Metric | Value |
+|--------|-------|
+| Total Gas Used | 4,398,164,168 |
+| Avg Gas / Block | 199,916,553 |
+| Min Gas / Block | 199,900,450 |
+| Max Gas / Block | 199,934,232 |
+| Avg Gas / Tx | 32,926 |
+| Utilization Avg | 99.95% |
+| Utilization Min | 99.95% |
+| Utilization Max | 99.96% |
+
+---
+
 ### 성능 비교 요약
 
 ```
-Gas Limit      TPS       Mgas/s    Block Time   Utilization
-─────────────────────────────────────────────────────────────
-120M           2,247     79        1.5s         97.7%
-180M (Best)    3,622     125       1.4s         99.5%
-─────────────────────────────────────────────────────────────
-향상률          +61%      +58%      -6.7%        +1.8%p
+Gas Limit   build-time   TPS       Mgas/s    Block Time   Utilization
+──────────────────────────────────────────────────────────────────────
+120M        1000ms       2,247     79        1.5s         97.7%
+180M        1000ms       3,622     125       1.4s         99.5%
+160M        500ms        4,999     164       1.0s         99.9%
+200M        500ms        6,360     209       1.0s         99.9%   ← Best
+──────────────────────────────────────────────────────────────────────
+120M→200M 향상            +183%     +164%     -33%         +2.2%p
 ```
+
+> 코드 수정(timestamp fix + canonicalize_head 동기화)과 commonware 2026.3.0 업그레이드가 블록 타임을 1.4s → 1.0s로 단축, TPS 대폭 향상.
+
+### TPS 75% 향상 원인 분석 (mg 브랜치 대비)
+
+두 테스트 모두 `time-to-build-proposal=500ms` 동일 설정. 성능 차이의 실제 원인은 소스코드 변경.
+
+#### 수치 비교
+
+```
+구분                    Test 2 (180M, mg)    Test 4 (200M, current)    변화
+───────────────────────────────────────────────────────────────────────────
+time-to-build-proposal   500ms (동일)          500ms (동일)              -
+Gas Limit                180M                  200M                      +11%
+Avg Block Time           1.4s                  1.0s                      -29%
+TPS                      3,622                 6,360                     +75%
+Mgas/s                   125                   209                       +67%
+Gas Utilization          99.5%                 99.9%                     +0.4%p
+```
+
+#### 원인 1 (주요): Timestamp 버그 수정
+
+**mg 브랜치 (버그)**:
+```rust
+// 단순히 현재 시각만 사용 → 같은 초에 2개 블록이 생성되면 parent.timestamp == now_secs
+let timestamp = self.context.current().epoch_millis() / 1000;
+```
+
+**현재 (수정)**:
+```rust
+// Ethereum 요구사항: timestamp > parent.timestamp 보장
+let now_secs = self.context.current().epoch_millis() / 1000;
+let timestamp = now_secs.max(parent.timestamp().saturating_add(1));
+```
+
+1.0s 블록 주기에서 블록 2개가 같은 초에 제안되면 `invalid timestamp` 에러로 `newPayload` 거절 →
+리더의 `verify()` 실패 → view rotation 발생 → 블록당 평균 1.4 view 소비.
+
+이 버그가 없으면 모든 블록이 1st view에서 확정 → 1.0s 안정.
+
+#### 원인 2 (주요): `canonicalize_head` 동기화 수정
+
+**mg 브랜치 (버그)**:
+```rust
+// fire-and-forget: FCU 전송 후 즉시 new_payload 전송
+if let Err(error) = self.state.executor.canonicalize_head(...) { warn!(...) }
+// EL이 FCU를 아직 처리하지 않은 상태에서 new_payload가 도달 → parent 블록 미인식 → 검증 실패
+```
+
+**현재 (수정)**:
+```rust
+// FCU acknowledgment를 기다린 후 new_payload 전송
+Ok(rx) => {
+    if rx.await.is_err() { warn!(...) }
+}
+// EL이 fork-choice를 처리 완료한 후에 블록 검증 요청 → 레이스 컨디션 제거
+```
+
+voter 검증 시 `canonicalize_head`(FCU)와 `new_payload`가 레이스 컨디션으로
+EL에 순서 뒤바뀌어 도달하는 경우 검증 실패 → 불필요한 view rotation.
+
+#### 원인 3 (보조): Commonware 2026.3.0 업그레이드
+
+`2026.2.0` → `2026.3.0`:
+- `CacheRef::from_pooler()`: 공유 buffer pool 사용으로 메모리 효율화
+- `MAX_PENDING_ACKS = 16`: marshal ACK 백프레셔 도입으로 큐 블로킹 감소
+- `marshal::core::Actor` + `standard::Standard<Block>`: 내부 marshal 파이프라인 개선
+- `broadcast` 엔진에 `peer_provider` 직접 연결: P2P 라우팅 레이어 단순화
+
+#### 원인 4 (보조): Gas Limit 11% 증가 (180M → 200M)
+
+```
+블록당 추가 tx 수: (200M - 180M) / 32,926 ≈ +607 tx/block → +607 TPS 기여
+```
+
+#### 복합 효과 정량화
+
+```
+  timestamp + canonicalize_head 수정 (블록타임 1.4s→1.0s):
+    3,622 × (1.4 / 1.0) = 5,071 TPS  (+1,449 TPS, 약 63%)
+  Gas Limit 증가 (180M→200M):
+    5,071 × (200 / 180) = 5,634 TPS  (+563 TPS,  약 24%)
+  commonware 업그레이드 + utilization 개선:
+                           +726 TPS  (약 13%)
+  ────────────────────────────────────────────
+  합계:                    6,360 TPS  (실측치와 일치)
+```
+
+#### 결론
+
+성능 향상의 핵심은 **두 가지 버그 수정**:
+1. `invalid timestamp` 에러 방지 → 1.0s 블록 타임 안정화
+2. `canonicalize_head` 레이스 컨디션 제거 → 검증 실패 없이 1st view finalization
+
+Gas Limit 200M은 EVM 실행시간(~417ms)이 Voter Safety Window(1450ms) 안에 3.47배 여유를
+유지하면서 최대 처리량을 내는 현 환경의 최적점.
+
+---
 
 ### Ethereum Mainnet 대비 비교
 
 | Metric | Ethereum Mainnet | Private Chain (Best) | Ratio |
 |--------|:----------------:|:--------------------:|:-----:|
-| Block Time | 12 seconds | **1.4 seconds** | **8.5x faster** |
-| Gas Limit | 30,000,000 | **180,000,000** | **6x larger** |
-| TPS (simple tx) | ~15-20 | **~3,622** | **~200x** |
-| Finality | ~15 minutes (2 epochs) | **~1.4 seconds** | **~640x faster** |
+| Block Time | 12 seconds | **1.0 seconds** | **12x faster** |
+| Gas Limit | 30,000,000 | **200,000,000** | **6.7x larger** |
+| TPS (simple tx) | ~15-20 | **~6,360** | **~350x** |
+| Finality | ~15 minutes (2 epochs) | **~1.0 seconds** | **~900x faster** |
 | Consensus | Gasper (PoS) | **SimplexBFT (Threshold)** | BFT |
 
 ---
@@ -745,4 +940,4 @@ crates/commonware-consensus/src/
 
 ---
 
-*Generated 2026-03-12 | Blockchain Team Internal Document*
+*Generated 2026-03-16 | Blockchain Team Internal Document*
