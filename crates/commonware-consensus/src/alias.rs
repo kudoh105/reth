@@ -13,9 +13,9 @@ pub(crate) mod marshal {
 
     use crate::consensus::{block::Block, Digest};
 
-    pub(crate) type Actor<TContext> = marshal::Actor<
+    pub(crate) type Actor<TContext> = marshal::core::Actor<
         TContext,
-        Block,
+        marshal::standard::Standard<Block>,
         crate::epoch::SchemeProvider,
         immutable::Archive<TContext, Digest, Finalization<Scheme<PublicKey, MinSig>, Digest>>,
         immutable::Archive<TContext, Digest, Block>,
@@ -24,5 +24,6 @@ pub(crate) mod marshal {
         Exact,
     >;
 
-    pub(crate) type Mailbox = marshal::Mailbox<Scheme<PublicKey, MinSig>, Block>;
+    pub(crate) type Mailbox =
+        marshal::core::Mailbox<Scheme<PublicKey, MinSig>, marshal::standard::Standard<Block>>;
 }

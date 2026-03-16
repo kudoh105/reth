@@ -1,0 +1,231 @@
+version: "3.8"
+
+# Consensus P2P peers (commonware)
+x-known-peers: &known-peers >-
+  --consensus.known-peers 0x1b040599fa8420315da0b6ba4fa079171e898c71cbcf7dc3d443a9859b83cfee@172.20.0.11:8000,0xf9bae1f8b538d0959878a79265c8aad301073919081e031f3b8458a9c1ea6f9b@172.20.0.12:8000,0x291b5fc290d027f7db1143874b4a55001ee148fcc831a1a321ebba3fccd40a38@172.20.0.13:8000,0xa5fda96a0acbccacc7eb6cbe8c7daab95d2fdb07ee7a76214d1ed3fa349a6984@172.20.0.14:8000
+
+services:
+  v1:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: private-v1
+    hostname: v1
+    volumes:
+      - v1-data:/data
+      - ./keys/v1:/keys:ro
+      - ./genesis.json:/genesis.json:ro
+    networks:
+      private-net:
+        ipv4_address: 172.20.0.11
+    ports:
+      - "8545:8545"
+    environment:
+      - RUST_LOG=info,commonware_p2p=debug,commonware_consensus=debug
+    command: >
+      node
+      --datadir /data
+      --chain /genesis.json
+      --http --http.addr 0.0.0.0
+      --http.port 8545
+      --http.api eth,net,web3,debug,admin,txpool
+      --http.corsdomain "*"
+      --consensus.wait-for-proposal 2000ms
+      --consensus.wait-for-notarizations 2000ms
+      --consensus.time-to-build-proposal 1000ms
+      --consensus.signing-key /keys/ed25519.hex
+      --consensus.listen-address 0.0.0.0:8000
+      --consensus.datadir /data/consensus
+      --consensus.fee-recipient 0x0000000000000000000000000000000000000001
+      --consensus.use-local-defaults
+      --consensus.allow-private-ips
+      --consensus.known-peers 0x1b040599fa8420315da0b6ba4fa079171e898c71cbcf7dc3d443a9859b83cfee@172.20.0.11:8000,0xf9bae1f8b538d0959878a79265c8aad301073919081e031f3b8458a9c1ea6f9b@172.20.0.12:8000,0x291b5fc290d027f7db1143874b4a55001ee148fcc831a1a321ebba3fccd40a38@172.20.0.13:8000,0xa5fda96a0acbccacc7eb6cbe8c7daab95d2fdb07ee7a76214d1ed3fa349a6984@172.20.0.14:8000
+      --trusted-peers enode://589f3dba0a879b2d609aaed13c9cb2454ed4857317a43c61ddc68c2f72a11aa838a6aacfecdbc290e91a13ec5c8db42fc80e77b201fd2507e439de802204e3ca@172.20.0.12:30303,enode://6ea41e7eb61028df93000ae06061d79d815bd7d3d90631f5158cd81403a81b0a613015982914edf1edab29bf13d0305f53b46501d5ab91ab3ec1454693976634@172.20.0.13:30303,enode://6dd7fc408eeddd1296436dc80337554bc5ec4d09602d8a882acc894b677a6f30dfd5f824cd71848e149bbd14072038f51afe9568088e2ebd0b049c7acde9ca73@172.20.0.14:30303
+      --txpool.pending-max-count 100000
+      --txpool.queued-max-count 50000
+      --txpool.basefee-max-count 10000
+      --txpool.max-account-slots 5000
+      --txpool.pending-max-size 134217728
+      --txpool.queued-max-size 134217728
+      --rpc.max-connections 5000
+      --rpc.max-request-size 100
+      --rpc.max-response-size 1000
+      --builder.gaslimit 200000000
+      --builder.interval 100ms
+    deploy:
+      resources:
+        limits:
+          memory: 8000m
+          cpus: "3"
+
+  v2:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: private-v2
+    hostname: v2
+    volumes:
+      - v2-data:/data
+      - ./keys/v2:/keys:ro
+      - ./genesis.json:/genesis.json:ro
+    networks:
+      private-net:
+        ipv4_address: 172.20.0.12
+    ports:
+      - "8546:8545"
+    environment:
+      - RUST_LOG=info,commonware_p2p=debug,commonware_consensus=debug
+    command: >
+      node
+      --datadir /data
+      --chain /genesis.json
+      --http --http.addr 0.0.0.0
+      --http.port 8545
+      --http.api eth,net,web3,debug,admin,txpool
+      --http.corsdomain "*"
+      --consensus.wait-for-proposal 2000ms
+      --consensus.wait-for-notarizations 2000ms
+      --consensus.time-to-build-proposal 1000ms
+      --consensus.signing-key /keys/ed25519.hex
+      --consensus.listen-address 0.0.0.0:8000
+      --consensus.datadir /data/consensus
+      --consensus.fee-recipient 0x0000000000000000000000000000000000000002
+      --consensus.use-local-defaults
+      --consensus.allow-private-ips
+      --consensus.known-peers 0x1b040599fa8420315da0b6ba4fa079171e898c71cbcf7dc3d443a9859b83cfee@172.20.0.11:8000,0xf9bae1f8b538d0959878a79265c8aad301073919081e031f3b8458a9c1ea6f9b@172.20.0.12:8000,0x291b5fc290d027f7db1143874b4a55001ee148fcc831a1a321ebba3fccd40a38@172.20.0.13:8000,0xa5fda96a0acbccacc7eb6cbe8c7daab95d2fdb07ee7a76214d1ed3fa349a6984@172.20.0.14:8000
+      --trusted-peers enode://501fb4b09d71a458b4c43545adf6f100fae7fb4342d8fce92cec2c8526f4bc35b9206d7f411ce23f9e441001434a83b84ca551424eaf6caf1e3f127a0ec9cbaf@172.20.0.11:30303,enode://6ea41e7eb61028df93000ae06061d79d815bd7d3d90631f5158cd81403a81b0a613015982914edf1edab29bf13d0305f53b46501d5ab91ab3ec1454693976634@172.20.0.13:30303,enode://6dd7fc408eeddd1296436dc80337554bc5ec4d09602d8a882acc894b677a6f30dfd5f824cd71848e149bbd14072038f51afe9568088e2ebd0b049c7acde9ca73@172.20.0.14:30303
+      --txpool.pending-max-count 100000
+      --txpool.queued-max-count 50000
+      --txpool.basefee-max-count 10000
+      --txpool.max-account-slots 5000
+      --txpool.pending-max-size 134217728
+      --txpool.queued-max-size 134217728
+      --rpc.max-connections 5000
+      --rpc.max-request-size 100
+      --rpc.max-response-size 1000
+      --builder.gaslimit 200000000
+      --builder.interval 100ms
+    deploy:
+      resources:
+        limits:
+          memory: 8000m
+          cpus: "3"
+
+  v3:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: private-v3
+    hostname: v3
+    volumes:
+      - v3-data:/data
+      - ./keys/v3:/keys:ro
+      - ./genesis.json:/genesis.json:ro
+    networks:
+      private-net:
+        ipv4_address: 172.20.0.13
+    ports:
+      - "8547:8545"
+    environment:
+      - RUST_LOG=info,commonware_p2p=debug,commonware_consensus=debug
+    command: >
+      node
+      --datadir /data
+      --chain /genesis.json
+      --http --http.addr 0.0.0.0
+      --http.port 8545
+      --http.api eth,net,web3,debug,admin,txpool
+      --http.corsdomain "*"
+      --consensus.wait-for-proposal 2000ms
+      --consensus.wait-for-notarizations 2000ms
+      --consensus.time-to-build-proposal 1000ms
+      --consensus.signing-key /keys/ed25519.hex
+      --consensus.listen-address 0.0.0.0:8000
+      --consensus.datadir /data/consensus
+      --consensus.fee-recipient 0x0000000000000000000000000000000000000003
+      --consensus.use-local-defaults
+      --consensus.allow-private-ips
+      --consensus.known-peers 0x1b040599fa8420315da0b6ba4fa079171e898c71cbcf7dc3d443a9859b83cfee@172.20.0.11:8000,0xf9bae1f8b538d0959878a79265c8aad301073919081e031f3b8458a9c1ea6f9b@172.20.0.12:8000,0x291b5fc290d027f7db1143874b4a55001ee148fcc831a1a321ebba3fccd40a38@172.20.0.13:8000,0xa5fda96a0acbccacc7eb6cbe8c7daab95d2fdb07ee7a76214d1ed3fa349a6984@172.20.0.14:8000
+      --trusted-peers enode://501fb4b09d71a458b4c43545adf6f100fae7fb4342d8fce92cec2c8526f4bc35b9206d7f411ce23f9e441001434a83b84ca551424eaf6caf1e3f127a0ec9cbaf@172.20.0.11:30303,enode://589f3dba0a879b2d609aaed13c9cb2454ed4857317a43c61ddc68c2f72a11aa838a6aacfecdbc290e91a13ec5c8db42fc80e77b201fd2507e439de802204e3ca@172.20.0.12:30303,enode://6dd7fc408eeddd1296436dc80337554bc5ec4d09602d8a882acc894b677a6f30dfd5f824cd71848e149bbd14072038f51afe9568088e2ebd0b049c7acde9ca73@172.20.0.14:30303
+      --txpool.pending-max-count 100000
+      --txpool.queued-max-count 50000
+      --txpool.basefee-max-count 10000
+      --txpool.max-account-slots 5000
+      --txpool.pending-max-size 134217728
+      --txpool.queued-max-size 134217728
+      --rpc.max-connections 5000
+      --rpc.max-request-size 100
+      --rpc.max-response-size 1000
+      --builder.gaslimit 200000000
+      --builder.interval 100ms
+    deploy:
+      resources:
+        limits:
+          memory: 8000m
+          cpus: "3"
+
+  v4:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: private-v4
+    hostname: v4
+    volumes:
+      - v4-data:/data
+      - ./keys/v4:/keys:ro
+      - ./genesis.json:/genesis.json:ro
+    networks:
+      private-net:
+        ipv4_address: 172.20.0.14
+    ports:
+      - "8548:8545"
+    environment:
+      - RUST_LOG=info,commonware_p2p=debug,commonware_consensus=debug
+    command: >
+      node
+      --datadir /data
+      --chain /genesis.json
+      --http --http.addr 0.0.0.0
+      --http.port 8545
+      --http.api eth,net,web3,debug,admin,txpool
+      --http.corsdomain "*"
+      --consensus.wait-for-proposal 2000ms
+      --consensus.wait-for-notarizations 2000ms
+      --consensus.time-to-build-proposal 1000ms
+      --consensus.signing-key /keys/ed25519.hex
+      --consensus.listen-address 0.0.0.0:8000
+      --consensus.datadir /data/consensus
+      --consensus.fee-recipient 0x0000000000000000000000000000000000000004
+      --consensus.use-local-defaults
+      --consensus.allow-private-ips
+      --consensus.known-peers 0x1b040599fa8420315da0b6ba4fa079171e898c71cbcf7dc3d443a9859b83cfee@172.20.0.11:8000,0xf9bae1f8b538d0959878a79265c8aad301073919081e031f3b8458a9c1ea6f9b@172.20.0.12:8000,0x291b5fc290d027f7db1143874b4a55001ee148fcc831a1a321ebba3fccd40a38@172.20.0.13:8000,0xa5fda96a0acbccacc7eb6cbe8c7daab95d2fdb07ee7a76214d1ed3fa349a6984@172.20.0.14:8000
+      --trusted-peers enode://501fb4b09d71a458b4c43545adf6f100fae7fb4342d8fce92cec2c8526f4bc35b9206d7f411ce23f9e441001434a83b84ca551424eaf6caf1e3f127a0ec9cbaf@172.20.0.11:30303,enode://589f3dba0a879b2d609aaed13c9cb2454ed4857317a43c61ddc68c2f72a11aa838a6aacfecdbc290e91a13ec5c8db42fc80e77b201fd2507e439de802204e3ca@172.20.0.12:30303,enode://6ea41e7eb61028df93000ae06061d79d815bd7d3d90631f5158cd81403a81b0a613015982914edf1edab29bf13d0305f53b46501d5ab91ab3ec1454693976634@172.20.0.13:30303
+      --txpool.pending-max-count 100000
+      --txpool.queued-max-count 50000
+      --txpool.basefee-max-count 10000
+      --txpool.max-account-slots 5000
+      --txpool.pending-max-size 134217728
+      --txpool.queued-max-size 134217728
+      --rpc.max-connections 5000
+      --rpc.max-request-size 100
+      --rpc.max-response-size 1000
+      --builder.gaslimit 200000000
+      --builder.interval 100ms
+    deploy:
+      resources:
+        limits:
+          memory: 8000m
+          cpus: "3"
+
+networks:
+  private-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  v1-data:
+  v2-data:
+  v3-data:
+  v4-data:

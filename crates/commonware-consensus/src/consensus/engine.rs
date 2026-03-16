@@ -27,8 +27,8 @@ use commonware_cryptography::{
 use commonware_p2p::{AddressableManager, Blocker, Receiver, Sender};
 use commonware_parallel::Sequential;
 use commonware_runtime::{
-    buffer::paged::CacheRef, spawn_cell, Clock, ContextCell, Handle, Metrics, Network, Pacer,
-    Spawner, Storage,
+    buffer::paged::CacheRef, spawn_cell, BufferPooler, Clock, ContextCell, Handle, Metrics,
+    Network, Pacer, Spawner, Storage,
 };
 use commonware_storage::archive::immutable;
 use commonware_utils::NZU64;
@@ -63,6 +63,7 @@ const WRITE_BUFFER: NonZeroUsize = NonZeroUsize::new(1024 * 1024).expect("value 
 const BUFFER_POOL_PAGE_SIZE: NonZeroU16 = NonZeroU16::new(4_096).expect("value is not zero");
 const BUFFER_POOL_CAPACITY: NonZeroUsize = NonZeroUsize::new(8_192).expect("value is not zero");
 const MAX_REPAIR: NonZeroUsize = NonZeroUsize::new(20).expect("value is not zero");
+const MAX_PENDING_ACKS: NonZeroUsize = NonZeroUsize::new(16).expect("value is not zero");
 
 /// Settings for [`Engine`].
 #[derive(Clone)]
@@ -106,7 +107,8 @@ where
         context: TContext,
     ) -> eyre::Result<Engine<TContext, TBlocker, TPeerManager>>
     where
-        TContext: Clock
+        TContext: BufferPooler
+            + Clock
             + governor::clock::Clock
             + Rng
             + CryptoRng
@@ -144,14 +146,15 @@ where
                 deque_size: self.deque_size,
                 priority: true,
                 codec_config: (),
+                peer_provider: peer_manager_mailbox.clone(),
             },
         );
 
-        let page_cache_ref = CacheRef::new(BUFFER_POOL_PAGE_SIZE, BUFFER_POOL_CAPACITY);
+        let page_cache_ref = CacheRef::from_pooler(&context, BUFFER_POOL_PAGE_SIZE, BUFFER_POOL_CAPACITY);
 
         let resolver_config = commonware_consensus::marshal::resolver::p2p::Config {
             public_key: self.signer.public_key(),
-            provider: peer_manager_mailbox.clone(),
+            peer_provider: peer_manager_mailbox.clone(),
             mailbox_size: self.mailbox_size,
             blocker: self.blocker.clone(),
             initial: Duration::from_secs(1),
@@ -246,7 +249,7 @@ where
         info!(elapsed = ?start.elapsed(), "restored finalized blocks archive");
 
         let epoch_strategy = FixedEpocher::new(NZU64!(epoch_length));
-        let (marshal, mut marshal_mailbox, last_finalized_height) = marshal::Actor::init(
+        let (marshal, mut marshal_mailbox, last_finalized_height) = marshal::core::Actor::init(
             context.with_label("marshal"),
             finalizations_by_height,
             finalized_blocks,
@@ -264,6 +267,7 @@ where
                 key_write_buffer: WRITE_BUFFER,
                 value_write_buffer: WRITE_BUFFER,
                 max_repair: MAX_REPAIR,
+                max_pending_acks: MAX_PENDING_ACKS,
                 block_codec_config: (),
                 strategy: Sequential,
             },
@@ -368,7 +372,8 @@ where
 
 pub struct Engine<TContext, TBlocker, TPeerManager>
 where
-    TContext: Clock
+    TContext: BufferPooler
+        + Clock
         + governor::clock::Clock
         + Rng
         + CryptoRng
@@ -382,7 +387,7 @@ where
 {
     context: ContextCell<TContext>,
 
-    broadcast: buffered::Engine<TContext, PublicKey, Block>,
+    broadcast: buffered::Engine<TContext, PublicKey, Block, peer_manager::Mailbox>,
     broadcast_mailbox: buffered::Mailbox<PublicKey, Block>,
 
     application: application::Actor<TContext>,
@@ -405,7 +410,8 @@ where
 
 impl<TContext, TBlocker, TPeerManager> Engine<TContext, TBlocker, TPeerManager>
 where
-    TContext: Clock
+    TContext: BufferPooler
+        + Clock
         + governor::clock::Clock
         + Rng
         + CryptoRng
