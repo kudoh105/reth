@@ -42,7 +42,7 @@ services:
       --consensus.allow-private-ips
       --consensus.known-peers ${V1_CONSENSUS_PUBKEY}@${V1_IP}:8000,${V2_CONSENSUS_PUBKEY}@${V2_IP}:8000,${V3_CONSENSUS_PUBKEY}@${V3_IP}:8000,${V4_CONSENSUS_PUBKEY}@${V4_IP}:8000
       --consensus.wait-for-proposal 2000ms
-      --consensus.time-to-build-proposal 1000ms
+      --consensus.time-to-build-proposal 500ms
       --p2p.secret-key /keys/nodekey
       --trusted-peers enode://${V2_ETH_NODEID}@${V2_IP}:30303,enode://${V3_ETH_NODEID}@${V3_IP}:30303,enode://${V4_ETH_NODEID}@${V4_IP}:30303
       --txpool.pending-max-count 100000
@@ -54,7 +54,7 @@ services:
       --rpc.max-connections 8000
       --rpc.max-request-size 100
       --rpc.max-response-size 1000
-      --builder.gaslimit 220000000
+      --builder.gaslimit 200000000
       --builder.interval 100ms
     deploy:
       resources:
