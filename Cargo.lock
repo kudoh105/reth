@@ -7303,6 +7303,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "pevm-node"
+version = "1.10.2"
+dependencies = [
+ "clap",
+ "commonware-runtime",
+ "eyre",
+ "futures",
+ "reth-chainspec",
+ "reth-cli-util",
+ "reth-commonware-consensus",
+ "reth-ethereum-cli",
+ "reth-node-builder",
+ "reth-node-core",
+ "reth-node-ethereum",
+ "reth-parallel-evm",
+ "reth-provider",
+ "reth-rpc-server-types",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
 name = "pharos"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10286,6 +10309,40 @@ dependencies = [
  "reth-engine-primitives",
  "reth-payload-primitives",
  "reth-primitives-traits",
+]
+
+[[package]]
+name = "reth-parallel-evm"
+version = "1.10.2"
+dependencies = [
+ "alloy-consensus",
+ "alloy-evm",
+ "alloy-primitives",
+ "alloy-rpc-types-eth",
+ "bitflags 2.10.0",
+ "dashmap",
+ "eyre",
+ "hashbrown 0.15.5",
+ "reth-chainspec",
+ "reth-ethereum-forks",
+ "reth-ethereum-primitives",
+ "reth-evm",
+ "reth-evm-ethereum",
+ "reth-execution-errors",
+ "reth-execution-types",
+ "reth-node-api",
+ "reth-node-builder",
+ "reth-primitives-traits",
+ "reth-revm",
+ "reth-storage-api",
+ "reth-storage-errors",
+ "revm",
+ "revm-database",
+ "revm-state",
+ "rustc-hash",
+ "smallvec",
+ "thiserror 2.0.18",
+ "tracing",
 ]
 
 [[package]]

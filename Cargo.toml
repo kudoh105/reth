@@ -9,6 +9,7 @@ exclude = [".github/"]
 
 [workspace]
 members = [
+    "bin/pevm-node/",
     "bin/private-node/",
     "bin/reth-bench/",
     "bin/reth-bench-compare/",
@@ -47,6 +48,7 @@ members = [
     "crates/ethereum/reth/",
     "crates/etl/",
     "crates/evm/evm",
+    "crates/parallel-evm",
     "crates/evm/execution-errors",
     "crates/evm/execution-types",
     "crates/exex/exex/",
@@ -369,6 +371,7 @@ reth-ethereum-primitives = { path = "crates/ethereum/primitives", default-featur
 reth-ethereum = { path = "crates/ethereum/reth" }
 reth-etl = { path = "crates/etl" }
 reth-evm = { path = "crates/evm/evm", default-features = false }
+reth-parallel-evm = { path = "crates/parallel-evm", default-features = false }
 reth-evm-ethereum = { path = "crates/ethereum/evm", default-features = false }
 reth-execution-errors = { path = "crates/evm/execution-errors", default-features = false }
 reth-execution-types = { path = "crates/evm/execution-types", default-features = false }

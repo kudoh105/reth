@@ -1,0 +1,50 @@
+[package]
+name = "reth-parallel-evm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+description = "Block-STM parallel EVM executor for reth (adapted from PEVM)"
+
+[dependencies]
+# Reth
+reth-chainspec.workspace = true
+reth-ethereum-forks.workspace = true
+reth-ethereum-primitives.workspace = true
+reth-evm.workspace = true
+reth-evm-ethereum.workspace = true
+reth-execution-errors.workspace = true
+reth-execution-types.workspace = true
+reth-node-api.workspace = true
+reth-node-builder.workspace = true
+reth-primitives-traits.workspace = true
+reth-revm = { workspace = true, features = ["std"] }
+reth-storage-api.workspace = true
+reth-storage-errors.workspace = true
+
+# Alloy
+alloy-consensus.workspace = true
+alloy-evm = { workspace = true, features = ["std"] }
+alloy-primitives.workspace = true
+alloy-rpc-types-eth.workspace = true
+
+# Revm – one crate re-exports everything we need
+revm = { workspace = true, features = ["std"] }
+revm-database = { workspace = true, features = ["std"] }
+revm-state = { workspace = true, features = ["std"] }
+
+# Concurrency / data structures
+dashmap.workspace = true
+smallvec.workspace = true
+
+# Utils
+bitflags.workspace = true
+eyre.workspace = true
+hashbrown = "0.15"
+rustc-hash.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true
